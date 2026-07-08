@@ -64,18 +64,18 @@ body {
 }
 
 /* ── Top bar: hamburger (left) · wordmark (center) ────────────────────────────── */
+/* In-flow (a flex child of .stage), so the eyes below it center in the real gap between the
+   logo and the caption — not the whole viewport, which biased them upward. */
 .topbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex: 0 0 auto;
   height: 64px;
   padding: 0 clamp(12px, 2.5vw, 24px);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   z-index: var(--z-topbar);
-  padding-top: max(0px, env(safe-area-inset-top));
+  margin-top: max(0px, env(safe-area-inset-top));
 }
 .topbar-left {
   justify-self: start;
@@ -85,6 +85,20 @@ body {
 }
 .topbar-right {
   justify-self: end;
+}
+
+.version-badge {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  opacity: 0.55;
+  z-index: var(--z-topbar);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .wordmark {
@@ -226,16 +240,17 @@ body {
 }
 
 /* ── Caption band (Ciocu's voice, under the eyes) ─────────────────────────────── */
-/* Lower region: Ciocu's voice. Its own flex band with reserved height, below the eyes. */
+/* Lower region: Ciocu's voice. Bottom-anchored band with reserved height (fits ~2 lines without
+   shifting the eyes when her reply length changes). */
 .caption-band {
   flex: 0 0 auto;
   width: 100%;
   max-width: min(92vw, 900px);
   margin: 0 auto;
-  padding: 0 16px clamp(40px, 9vh, 104px);
-  min-height: clamp(96px, 20vh, 200px);
+  padding: 0 16px clamp(32px, 6vh, 72px);
+  min-height: clamp(92px, 16vh, 150px);
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: center;
   text-align: center;
   z-index: var(--z-caption);

@@ -6,6 +6,7 @@ import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import PresenceControl from "@/components/PresenceControl";
+import VersionBadge from "@/components/VersionBadge";
 import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import type { StateName } from "@/lib/eyes/presets";
@@ -56,8 +57,6 @@ export default function Home() {
 
   return (
     <main className="stage">
-      <EyeStage onReady={(h) => (engineRef.current = h)} />
-
       <header className="topbar">
         <div className="topbar-left">
           <HamburgerMenu />
@@ -70,10 +69,13 @@ export default function Home() {
         </div>
       </header>
 
+      <EyeStage onReady={(h) => (engineRef.current = h)} />
+
       <div className="caption-band">
         <Caption text={caption} />
       </div>
 
+      <VersionBadge />
       <ChatDrawer messages={messages} onSend={handleSend} />
     </main>
   );

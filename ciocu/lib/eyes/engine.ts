@@ -16,9 +16,9 @@ const el = (n: string, a: Record<string, string | number> = {}): SVGElement => {
 };
 
 // layout (viewBox units, 1600x900)
-// CY raised well above the prototype's 486 so the eyes sit in the upper part of their region,
-// leaving clear air above the (separate) caption band beneath them.
-const CX = 800, CY = 400, GAP = 196;
+// CY near the vertical middle of the viewBox so the eyes sit centered in their region (the gap
+// between the logo and the caption), a touch high for a friendlier read (research doc 04).
+const CX = 800, CY = 440, GAP = 196;
 const HALFW = 152, HALFH = 216, K = 0.72;
 const MAXGX = 48, MAXGY = 40;
 const PR = HALFW * 0.52, PY = HALFH * 0.08;
