@@ -157,7 +157,8 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   const sacc = { x: 0, y: 0 }; let saccTgt = { x: 0, y: 0 }, nextSacc = 0;
   const micro = { x: 0, y: 0 }; let microTgt = { x: 0, y: 0 }, nextMicro = 0;
   const head = { x: 0, y: 0 }; let headTgt = { x: 0, y: 0 }, nextHead = 0;
-  const blink = [1, 1]; const blinkTgt = [1, 1]; let nextBlink = 1.2, blinkPhase = 0;
+  const blink = [1, 1]; const blinkTgt = [1, 1]; const blinkOverride = [1, 1];
+  let nextBlink = 1.2, blinkPhase = 0;
   const dyn = { nodY: 0, converge: 0, swoon: 0 };
   interface Transient { t: number; d: number; f: (p: number) => void; end?: () => void; loop?: boolean }
   const transients: Transient[] = [];
@@ -281,7 +282,13 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     else if (bp < closeT + openT) bshape = (bp - closeT) / openT;
     else bshape = 1;
     bshape = clamp(bshape, 0.04, 1);
-    for (let e = 0; e < 2; e++) blink[e] = lerp(blink[e], Math.min(blinkTgt[e], bshape), 0.5);
+    // Auto-blink follows its shape curve directly => every blink closes fully and consistently
+    // (the old lerp chase couldn't keep up with the fast close, causing partial "micro-blink"
+    // flickers). Per-eye lid targets (wink) ease in separately, then compose via min.
+    for (let e = 0; e < 2; e++) {
+      blinkOverride[e] = lerp(blinkOverride[e], blinkTgt[e], 0.4);
+      blink[e] = Math.min(bshape, blinkOverride[e]);
+    }
 
     dyn.nodY = lerp(dyn.nodY, 0, 0.06);
     for (let i = transients.length - 1; i >= 0; i--) {
@@ -300,9 +307,10 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     renderEye(eyeL, t, glow);
     renderEye(eyeR, t, glow);
 
-    if (t > nextHead) { headTgt = { x: rnd(-1, 1) * 30, y: rnd(-1, 1) * 2 }; nextHead = t + rnd(2.4, 5.5); }
+    // Gentle presence sway — kept subtle (was ~±64px, which read as swinging back and forth).
+    if (t > nextHead) { headTgt = { x: rnd(-1, 1) * 13, y: rnd(-1, 1) * 2 }; nextHead = t + rnd(2.4, 5.5); }
     head.x = lerp(head.x, headTgt.x, 0.025); head.y = lerp(head.y, headTgt.y, 0.025);
-    const swayX = head.x + Math.sin(t * 0.55) * 34, swayY = head.y + Math.sin(t * 0.4) * 1.2;
+    const swayX = head.x + Math.sin(t * 0.55) * 14, swayY = head.y + Math.sin(t * 0.4) * 1.2;
     gtStore = lerp(gtStore, cur.gtilt, 0.12);
     eyesG.setAttribute("transform", `translate(${swayX.toFixed(2)} ${swayY.toFixed(2)}) rotate(${gtStore} ${CX} ${CY})`);
 
