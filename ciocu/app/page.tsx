@@ -9,7 +9,7 @@ import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import type { StateName } from "@/lib/eyes/presets";
 
-const GREETING = "I'm here. Look into my eyes when you want to talk.";
+const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 
 // M1 mock: stands in for the LLM (arrives in M3). Picks a reply + an eye state from keywords so
 // the whole interaction shape — you write, Ciocu reacts in text and in her eyes — is testable now.
