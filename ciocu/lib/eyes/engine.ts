@@ -60,6 +60,8 @@ interface Eye {
 
 export interface EyeEngineHandle {
   setState: (name: StateName) => void;
+  /** 0..1 live voice level (VAD) — brightens the glow while she's receiving you. */
+  setVoiceLevel: (v: number) => void;
   destroy: () => void;
 }
 
@@ -160,6 +162,7 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   interface Transient { t: number; d: number; f: (p: number) => void; end?: () => void; loop?: boolean }
   const transients: Transient[] = [];
   let pulseOn = false;
+  let voiceLevel = 0, voiceTarget = 0; // VAD glow (set from the gated mic)
   let gtStore = 0;
   const t0 = performance.now();
   let raf = 0;
@@ -291,6 +294,8 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     const breathe = 1 + Math.sin(t * 1.6) * 0.06;
     let glow = cur.glow * breathe;
     if (pulseOn) glow *= 1 + Math.abs(Math.sin(t * 3.4)) * 0.18;
+    voiceLevel = lerp(voiceLevel, voiceTarget, 0.3);
+    if (voiceLevel > 0.001) glow *= 1 + voiceLevel * 0.5;
 
     renderEye(eyeL, t, glow);
     renderEye(eyeR, t, glow);
@@ -318,6 +323,9 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
 
   return {
     setState,
+    setVoiceLevel(v: number) {
+      voiceTarget = clamp(v, 0, 1);
+    },
     destroy() {
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onPointerMove);

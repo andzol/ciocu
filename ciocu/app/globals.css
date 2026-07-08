@@ -83,6 +83,9 @@ body {
 .topbar-center {
   justify-self: center;
 }
+.topbar-right {
+  justify-self: end;
+}
 
 .wordmark {
   font-size: clamp(22px, 2.6vw, 30px);
@@ -119,6 +122,53 @@ body {
 .icon-button:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 2px;
+}
+.icon-button--active {
+  color: var(--cyan);
+  background: var(--surface);
+  border-color: var(--border-cyan);
+}
+
+/* ── Presence / eye-contact control ───────────────────────────────────────────── */
+.presence-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+/* floats below the button so it never crowds the wordmark on narrow screens */
+.presence-hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  max-width: min(260px, 72vw);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--text-dim);
+}
+/* honest "camera is live" indicator */
+.live-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 8px var(--cyan);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
 }
 
 /* ── Hamburger menu ───────────────────────────────────────────────────────────── */

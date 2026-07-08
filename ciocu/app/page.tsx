@@ -5,6 +5,7 @@ import EyeStage from "@/components/EyeStage";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
+import PresenceControl from "@/components/PresenceControl";
 import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import type { StateName } from "@/lib/eyes/presets";
@@ -26,8 +27,18 @@ function mockReact(input: string): { reply: string; state: StateName } {
 export default function Home() {
   const engineRef = useRef<EyeEngineHandle | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attendingRef = useRef(false);
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // M2: eye contact drives presence. Looking at Ciocu -> listening; looking away -> idle.
+  const handleAttention = useCallback((attending: boolean) => {
+    attendingRef.current = attending;
+    engineRef.current?.setState(attending ? "listening" : "idle");
+  }, []);
+  const handleVoice = useCallback((level: number) => {
+    engineRef.current?.setVoiceLevel(level);
+  }, []);
 
   const handleSend = useCallback((text: string) => {
     setMessages((prev) => [...prev, { role: "user", text }]);
@@ -36,7 +47,11 @@ export default function Home() {
     setCaption(reply);
     setMessages((prev) => [...prev, { role: "ciocu", text: reply }]);
     if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => engineRef.current?.setState("neutral"), 4500);
+    // settle back to whatever presence eye-contact implies, not a blank neutral
+    settleTimer.current = setTimeout(
+      () => engineRef.current?.setState(attendingRef.current ? "listening" : "neutral"),
+      4500,
+    );
   }, []);
 
   return (
@@ -50,7 +65,9 @@ export default function Home() {
         <div className="topbar-center">
           <Wordmark />
         </div>
-        <div className="topbar-right" />
+        <div className="topbar-right">
+          <PresenceControl onAttention={handleAttention} onVoice={handleVoice} />
+        </div>
       </header>
 
       <div className="caption-band">
