@@ -16,9 +16,9 @@ const el = (n: string, a: Record<string, string | number> = {}): SVGElement => {
 };
 
 // layout (viewBox units, 1600x900)
-// CY raised from the prototype's 486 to ~48% (research doc 04 spec) so the eyes read as
-// "slightly top-middle" and leave room for the caption band beneath them.
-const CX = 800, CY = 432, GAP = 196;
+// CY raised well above the prototype's 486 so the eyes sit in the upper part of their region,
+// leaving clear air above the (separate) caption band beneath them.
+const CX = 800, CY = 400, GAP = 196;
 const HALFW = 152, HALFH = 216, K = 0.72;
 const MAXGX = 48, MAXGY = 40;
 const PR = HALFW * 0.52, PY = HALFH * 0.08;
@@ -93,10 +93,9 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   svg.style.width = "100%";
   svg.style.height = "100%";
   svg.style.display = "block";
-  svg.innerHTML =
-    `<defs>${DEFS}</defs>` +
-    `<rect x="0" y="0" width="1600" height="900" fill="url(#bg)"/>` +
-    `<g id="eyes"></g>`;
+  // No opaque background rect: the page-level CSS radial shows through, so there is never a
+  // visible 16:9 seam when the SVG is letterboxed inside the eye region.
+  svg.innerHTML = `<defs>${DEFS}</defs>` + `<g id="eyes"></g>`;
   container.appendChild(svg);
 
   const eyesG = svg.querySelector("#eyes") as SVGGElement;

@@ -46,14 +46,21 @@ body {
   position: fixed;
   inset: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* one seamless page-level background; the eye SVG is transparent so there is no letterbox seam */
+  background: radial-gradient(125% 95% at 50% 40%, var(--bg-radial), var(--bg) 72%);
 }
 
+/* Upper region: the eyes. A flex sibling of the caption band, so the two can never overlap
+   regardless of viewport aspect ratio (the wide-and-short case that caused the collision). */
 .eye-stage {
-  position: fixed;
-  inset: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 90% at 50% 42%, var(--bg-radial), var(--bg) 70%);
+  position: relative;
+  overflow: hidden;
 }
 
 /* ── Top bar: hamburger (left) · wordmark (center) ────────────────────────────── */
@@ -169,13 +176,16 @@ body {
 }
 
 /* ── Caption band (Ciocu's voice, under the eyes) ─────────────────────────────── */
+/* Lower region: Ciocu's voice. Its own flex band with reserved height, below the eyes. */
 .caption-band {
-  position: fixed;
-  left: 50%;
-  bottom: clamp(72px, 16vh, 150px);
-  transform: translateX(-50%);
-  width: min(92vw, 900px);
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: min(92vw, 900px);
+  margin: 0 auto;
+  padding: 0 16px clamp(40px, 9vh, 104px);
+  min-height: clamp(96px, 20vh, 200px);
   display: flex;
+  align-items: flex-start;
   justify-content: center;
   text-align: center;
   z-index: var(--z-caption);
