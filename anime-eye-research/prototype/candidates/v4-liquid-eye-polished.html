@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Anime Eye Interface — Prototype</title>
+<style>
+  :root{ --chip:#0f1722; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:#05070b; overflow:hidden;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; color:#cfe9f2; }
+  /* 16:9 stage, letterboxed to fill the screen */
+  #stage{ position:fixed; inset:0; display:grid; place-items:center; }
+  #wrap{ position:relative; width:100vw; height:56.25vw; max-height:100vh; max-width:177.78vh; }
+  svg#face{ width:100%; height:100%; display:block; }
+  /* mood hue shift applies to the whole eye group; catchlights are white so they stay clean */
+  #eyes{ transition: filter 600ms ease; will-change: filter; }
+
+  /* ---- controls ---- */
+  #ui{ position:fixed; left:0; right:0; bottom:0; padding:14px 16px 16px;
+    display:flex; flex-direction:column; gap:10px; align-items:center;
+    background:linear-gradient(0deg, rgba(5,7,11,.85), rgba(5,7,11,0));
+    transition:opacity .35s ease, transform .35s ease; z-index:5; }
+  #ui.hidden{ opacity:0; transform:translateY(30px); pointer-events:none; }
+  .row{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; }
+  .label{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-right:4px; }
+  button.chip{ appearance:none; border:1px solid rgba(120,180,210,.22); background:var(--chip);
+    color:#cfe9f2; padding:8px 13px; border-radius:999px; font-size:13px; cursor:pointer;
+    transition:all .15s ease; display:flex; align-items:center; gap:7px; }
+  button.chip:hover{ border-color:rgba(90,220,255,.6); background:#132132; transform:translateY(-1px); }
+  button.chip.on{ border-color:#37e6ff; background:#123344; box-shadow:0 0 0 1px #37e6ff55, 0 0 18px #23c6ff33; color:#eafcff; }
+  .chip .k{ font-size:10px; opacity:.45; }
+  .presence button.chip.on{ border-color:#ffd86b; box-shadow:0 0 0 1px #ffd86b55, 0 0 18px #ffcf5a33; background:#2a2411; color:#fff3d0; }
+  .hint{ font-size:11px; opacity:.4; }
+  .hint b{ color:#8fe6ff; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="wrap">
+    <svg id="face" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" aria-label="Robot eyes">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+          <stop offset="0%" stop-color="#0d131d"/>
+          <stop offset="60%" stop-color="#080b12"/>
+          <stop offset="100%" stop-color="#04060a"/>
+        </radialGradient>
+        <!-- iris: off-center (brighter toward lower-center where bounce light hits) -->
+        <radialGradient id="iris" cx="50%" cy="70%" r="80%">
+          <stop offset="0%"  stop-color="#f6ffff"/>
+          <stop offset="28%" stop-color="#b3f5ff"/>
+          <stop offset="60%" stop-color="#49d7f2"/>
+          <stop offset="85%" stop-color="#178fb8"/>
+          <stop offset="100%" stop-color="#0a4257"/>
+        </radialGradient>
+        <!-- Kirby two-tone: darken the top of the iris for a glassy dome -->
+        <linearGradient id="irisTop" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#04203a" stop-opacity=".6"/>
+          <stop offset="45%" stop-color="#04203a" stop-opacity="0"/>
+        </linearGradient>
+        <!-- big glossy dark "liquid eye" core (Grogu / kitten): deep, defined, slight top gloss -->
+        <radialGradient id="pupilG" cx="50%" cy="36%" r="68%">
+          <stop offset="0%"  stop-color="#0e4256"/>
+          <stop offset="42%" stop-color="#052734"/>
+          <stop offset="78%" stop-color="#02141d"/>
+          <stop offset="100%" stop-color="#010b12"/>
+        </radialGradient>
+        <radialGradient id="rim" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#f4ffff"/>
+          <stop offset="55%" stop-color="#b8f8ff"/>
+          <stop offset="100%" stop-color="#b8f8ff" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="sheen" x1="0" y1="0" x2="0.7" y2="1">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity=".5"/>
+          <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+        <filter id="bloom" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="20"/></filter>
+        <filter id="spark" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.4"/></filter>
+      </defs>
+
+      <rect x="0" y="0" width="1600" height="900" fill="url(#bg)"/>
+      <g id="eyes"></g>
+    </svg>
+  </div>
+</div>
+
+<div id="ui">
+  <div class="row emotions" id="rowEmotion">
+    <span class="label">Feeling</span>
+  </div>
+  <div class="row presence" id="rowPresence">
+    <span class="label">Presence</span>
+  </div>
+  <div class="hint">
+    move mouse = gaze · <b>H</b> hide UI · <b>F</b> fullscreen · <b>Space</b> blink · <b>1–9</b> quick states
+  </div>
+</div>
+
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* ---------- layout (viewBox units, 1600x900) ---------- */
+const CX=800, CY=486, GAP=196;            // eye centers at CX ± GAP (bigger, lower, closer = babyish)
+const HALFW=152, HALFH=216, K=0.72;       // base size + roundness handle (rounder)
+const MAXGX=48, MAXGY=40;                 // max pupil travel
+const PR=HALFW*0.52, PY=HALFH*0.08;       // dark-orb radius + resting centre (slightly low)
+
+/* ---------- expression presets ----------
+   open      vertical openness
+   topBend/botBend  edge extent multipliers (botBend<0 => smile crescent)
+   tilt      inner-corner rotation (deg, +angry / -sad), mirrored L/R
+   pupil     pupil scale
+   gaze      base gaze {x,y}
+   glow      rim+bloom intensity
+   hue/sat   mood color (cyan default = 0deg)
+   gtilt     whole-face head tilt (questioning)
+   speed     ease rate 0..1  (higher = snappier)
+   jitter    per-frame tremble amount
+   blinkS    blink interval/length scale
+   mode      gaze behaviour: 'follow' | 'wander' | 'lock'
+   enter     one-shot routine on select                                   */
+const P = {
+  neutral:   {open:1.00, topBend:0.94, botBend:1.08, tilt:0,  pupil:1.00, gaze:{x:0,y:0},    glow:1.0, hue:0,   sat:1,   gtilt:0, speed:.12, jitter:0,   blinkS:1,  mode:'follow'},
+  happy:     {open:0.92, topBend:0.95, botBend:-0.55,tilt:0,  pupil:1.15, gaze:{x:0,y:-.08}, glow:1.25,hue:6,   sat:1.05,gtilt:0, speed:.16, jitter:0,   blinkS:1,  mode:'follow', enter:'bounce'},
+  surprised: {open:1.35, topBend:1.28, botBend:1.28, tilt:0,  pupil:0.50, gaze:{x:0,y:0},    glow:1.5, hue:0,   sat:1,   gtilt:0, speed:.30, jitter:0,   blinkS:1.6,mode:'follow', enter:'pop'},
+  sad:       {open:0.80, topBend:0.72, botBend:1.02, tilt:-13,pupil:1.22, gaze:{x:0,y:.42},  glow:0.7, hue:-14, sat:.7,  gtilt:0, speed:.07, jitter:.7, blinkS:1.3,mode:'follow'},
+  angry:     {open:0.60, topBend:0.55, botBend:0.9,  tilt:16, pupil:0.72, gaze:{x:0,y:.02},  glow:1.35,hue:-150,sat:1.2, gtilt:0, speed:.18, jitter:1.1, blinkS:1.4,mode:'follow'},
+  sleepy:    {open:0.42, topBend:0.9,  botBend:1.0,  tilt:-6, pupil:1.0,  gaze:{x:0,y:.30},  glow:0.55,hue:-8,  sat:.65, gtilt:0, speed:.06, jitter:0,   blinkS:2.4,mode:'follow'},
+  love:      {open:1.05, topBend:1.0,  botBend:0.5,  tilt:0,  pupil:1.5,  gaze:{x:0,y:-.08}, glow:1.35,hue:150, sat:1.2, gtilt:0, speed:.12, jitter:0,   blinkS:1,  mode:'follow', enter:'swoon'},
+  wink:      {open:0.92, topBend:0.95, botBend:-0.45,tilt:0,  pupil:1.1,  gaze:{x:0,y:0},    glow:1.2, hue:6,   sat:1.05,gtilt:0, speed:.18, jitter:0,   blinkS:1,  mode:'follow', enter:'wink'},
+
+  /* presence states */
+  idle:      {open:1.00, topBend:0.94, botBend:1.08, tilt:0,  pupil:1.00, gaze:{x:0,y:0},    glow:1.0, hue:0,   sat:1,   gtilt:0, speed:.10, jitter:0,   blinkS:1,  mode:'follow'},
+  listening: {open:1.10, topBend:1.05, botBend:1.02, tilt:0,  pupil:1.05, gaze:{x:0,y:-.04}, glow:1.15,hue:0,   sat:1,   gtilt:0, speed:.14, jitter:0,   blinkS:.8, mode:'lock', enter:'pulse'},
+  question:  {open:1.02, topBend:1.05, botBend:1.0,  tilt:0,  pupil:1.05, gaze:{x:.12,y:-.34},glow:1.1,hue:0,   sat:1,   gtilt:10,speed:.14, jitter:0,   blinkS:1.2,mode:'lock'},
+  affirmative:{open:0.95,topBend:0.95, botBend:-0.3, tilt:0,  pupil:1.1,  gaze:{x:0,y:0},    glow:1.3, hue:4,   sat:1.05,gtilt:0, speed:.2,  jitter:0,   blinkS:1,  mode:'lock', enter:'nod'},
+  focused:   {open:0.74, topBend:0.7,  botBend:0.85, tilt:4,  pupil:0.78, gaze:{x:0,y:-.06}, glow:1.4, hue:0,   sat:1.1, gtilt:0, speed:.16, jitter:0,   blinkS:2.2,mode:'lock', enter:'converge'},
+  thinking:  {open:0.9,  topBend:0.92, botBend:1.0,  tilt:0,  pupil:1.0,  gaze:{x:-.3,y:-.35},glow:1.05,hue:0,  sat:1,   gtilt:0, speed:.09, jitter:0,   blinkS:1.6,mode:'wander'},
+};
+
+/* ---------- build the two eyes ---------- */
+const eyesG=document.getElementById("eyes");
+function buildEye(side){
+  const sign = side==='L' ? -1 : 1;
+  const g = el("g",{class:"eye"});
+  const clipId = "clip"+side;
+  const clip = el("clipPath",{id:clipId});
+  const clipPath = el("path",{}); clip.appendChild(clipPath); g.appendChild(clip);
+
+  const bloom = el("path",{fill:"#37e6ff", filter:"url(#bloom)", opacity:".55"});
+  const body  = el("path",{fill:"url(#iris)"});
+  const inner = el("g",{"clip-path":`url(#${clipId})`});
+
+  // Kirby two-tone: dark dome shade over the top of the iris
+  const topShade = el("ellipse",{cx:0,cy:-HALFH*.5,rx:HALFW*1.15,ry:HALFH*.72,fill:"url(#irisTop)"});
+  // striation rings (faint iris depth)
+  const ring1 = el("ellipse",{cx:0,cy:6,rx:HALFW*.66,ry:HALFH*.66,fill:"none",stroke:"#eafcff",
+                              "stroke-width":2,opacity:".07"});
+  const ring2 = el("ellipse",{cx:0,cy:10,rx:HALFW*.42,ry:HALFH*.42,fill:"none",stroke:"#eafcff",
+                              "stroke-width":2,opacity:".05"});
+  // lower rim bounce-glow (bright crescent under the dark orb — Kirby glow)
+  const rim   = el("ellipse",{cx:0,cy:HALFH*.5,rx:HALFW*.7,ry:HALFH*.22,fill:"url(#rim)",
+                              filter:"url(#soft)",opacity:".9"});
+  // BIG glossy dark "liquid eye" core — the star of the show
+  const pupil = el("ellipse",{cx:0,cy:PY,rx:PR,ry:PR,fill:"url(#pupilG)"});
+  // wet bounce-reflection low in the orb (the glow reflected in the eye = "alive & liquid")
+  const refl  = el("ellipse",{cx:0,cy:PY+PR*.5,rx:PR*.58,ry:PR*.3,fill:"#9df7ff",opacity:".22",filter:"url(#soft)"});
+  // primary catchlight — big, sits on the upper part of the dark orb (reads as eye-contact)
+  const c1x=-sign*PR*.32, c1y=PY-PR*.42;
+  const cat1  = el("ellipse",{cx:c1x,cy:c1y,rx:PR*.42,ry:PR*.5,fill:"#ffffff",
+                              transform:`rotate(${sign*14} ${c1x} ${c1y})`,opacity:".99"});
+  const cat1b = el("ellipse",{cx:c1x,cy:c1y,rx:PR*.42,ry:PR*.5,fill:"#ffffff",filter:"url(#spark)",opacity:".5",
+                              transform:`rotate(${sign*14} ${c1x} ${c1y})`});
+  // secondary catchlight — small, opposite corner, also on the orb
+  const cat2  = el("circle",{cx:sign*PR*.34,cy:PY+PR*.44,r:PR*.16,fill:"#ffffff",opacity:".92"});
+  // kawaii 4-point star sparkle in the bright iris rim (upper-outer)
+  const star  = el("path",{d:starPath(-sign*HALFW*.34,-HALFH*.4,13,5),fill:"#ffffff",opacity:".85",filter:"url(#spark)"});
+  // cornea sheen
+  const sheen = el("ellipse",{cx:-sign*20,cy:-HALFH*.5,rx:HALFW*.7,ry:HALFH*.32,fill:"url(#sheen)",opacity:".5"});
+  // floating sparkle particles ("the details")
+  const sparks=[];
+  const SN=7;
+  for(let i=0;i<SN;i++){
+    const s = el("circle",{r:rnd(1.6,4.2),fill:"#f6ffff",filter:"url(#spark)"});
+    s._p={ ang:rnd(0,Math.PI*2), rad:rnd(HALFW*.28,HALFW*.82), rrad:rnd(HALFH*.28,HALFH*.78),
+           dr:rnd(2,7), spd:rnd(.5,1.5), ph:rnd(0,6.28), drift:rnd(.2,.6)*(Math.random()<.5?-1:1) };
+    sparks.push(s);
+  }
+  // one soft bokeh
+  const bok = el("circle",{r:rnd(10,16),fill:"#bff6ff",filter:"url(#bloom)",opacity:".25"});
+  bok._p={ang:rnd(0,6.28),rad:HALFW*.5,rrad:HALFH*.5,spd:.4,ph:rnd(0,6.28)};
+
+  inner.append(topShade,ring1,ring2,rim,pupil,refl,sheen,bok,cat2,cat1b,cat1,star,...sparks);
+  const limbal = el("path",{fill:"none",stroke:"#063b4a","stroke-width":7,opacity:".55"});
+
+  g.append(bloom,body,inner,limbal);
+  eyesG.appendChild(g);
+  return {side,sign,g,clipPath,bloom,body,inner,limbal,rim,pupil,refl,cat1,cat1b,cat2,star,sheen,ring1,ring2,sparks,bok};
+}
+const eyeL=buildEye('L'), eyeR=buildEye('R');
+
+/* 4-point sparkle star (concave diamond) */
+function starPath(cx,cy,R,r){
+  const p=[];
+  for(let i=0;i<8;i++){
+    const ang=(Math.PI/4)*i - Math.PI/2;
+    const rad=(i%2===0)?R:r;
+    p.push(`${(cx+Math.cos(ang)*rad).toFixed(1)} ${(cy+Math.sin(ang)*rad).toFixed(1)}`);
+  }
+  return "M"+p.join(" L")+" Z";
+}
+
+/* rounded-lens path in LOCAL coords (centered at 0,0) */
+function eyePath(w, topH, botH){
+  const kt=topH*K, kb=botH*K, kw=w*K;
+  return `M 0 ${-topH}`+
+    ` C ${kw} ${-topH} ${w} ${-kt} ${w} 0`+
+    ` C ${w} ${kb} ${kw} ${botH} 0 ${botH}`+
+    ` C ${-kw} ${botH} ${-w} ${kb} ${-w} 0`+
+    ` C ${-w} ${-kt} ${-kw} ${-topH} 0 ${-topH} Z`;
+}
+
+/* ---------- animation state ---------- */
+let cur = JSON.parse(JSON.stringify(P.neutral));  // eased params
+let tgt = P.neutral;
+let curGaze={x:0,y:0}, mouse={x:0,y:0}, mouseActive=false, mouseT=0;
+let sacc={x:0,y:0}, saccTgt={x:0,y:0}, nextSacc=0;
+let blink=[1,1], blinkTgt=[1,1], nextBlink=1.2, blinkPhase=0;
+let dyn={nodY:0, glowP:0, converge:0, swoon:0};
+let transients=[];
+let curName='neutral';
+const t0=performance.now();
+
+function setExpr(name){
+  if(!P[name]) return;
+  curName=name; tgt=P[name];
+  // mood color via CSS filter on the eye group (white catchlights unaffected)
+  eyesG.style.filter = `hue-rotate(${tgt.hue}deg) saturate(${tgt.sat})`;
+  // reset transient behaviours
+  dyn.converge=0; dyn.swoon=0;
+  if(tgt.enter) runRoutine(tgt.enter);
+  updateButtons(name);
+}
+
+/* one-shot / looping routines */
+let pulseOn=false;
+function runRoutine(kind){
+  pulseOn=false;
+  const now=(performance.now()-t0)/1000;
+  if(kind==='nod'){ transients.push({t:now,d:.9,f:p=>{ dyn.nodY = Math.sin(p*Math.PI*2)*34*(1-p*.4); }}); }
+  else if(kind==='bounce'){ transients.push({t:now,d:.6,f:p=>{ dyn.nodY = -Math.sin(p*Math.PI)*22*(1-p); }}); }
+  else if(kind==='pop'){ blinkTgt=[1.12,1.12]; transients.push({t:now,d:.35,f:p=>{},end:()=>blinkTgt=[1,1]}); }
+  else if(kind==='swoon'){ transients.push({t:now,d:2.2,loop:true,f:p=>{ dyn.swoon=Math.sin(p*Math.PI*2)*10; }}); }
+  else if(kind==='wink'){ // right eye quick close+open
+      blinkTgt[1]=0.05;
+      transients.push({t:now,d:.42,f:p=>{},end:()=>{blinkTgt[1]=1;}}); }
+  else if(kind==='converge'){ transients.push({t:now,d:.6,f:p=>{ dyn.converge=p*14; }}); }
+  else if(kind==='pulse'){ pulseOn=true; }
+}
+
+/* ---------- main loop ---------- */
+function frame(now){
+  const t=(now-t0)/1000, dt=Math.min(.05,(now-(frame._l||now))/1000); frame._l=now;
+
+  // ease core params toward target
+  const s=tgt.speed;
+  for(const k of ["open","topBend","botBend","tilt","pupil","glow","gtilt","jitter"])
+    cur[k]=lerp(cur[k],tgt[k],s);
+  cur.gaze.x=lerp(cur.gaze.x,tgt.gaze.x,s); cur.gaze.y=lerp(cur.gaze.y,tgt.gaze.y,s);
+
+  /* ----- gaze ----- */
+  let gx=cur.gaze.x, gy=cur.gaze.y;
+  if(tgt.mode==='wander'){
+    gx += Math.sin(t*0.7)*.5; gy += Math.sin(t*0.53)*.35 - .15;
+  } else if(tgt.mode==='lock'){
+    if(mouseActive){ gx += mouse.x*.35; gy += mouse.y*.3; }
+  } else { // follow
+    if(now/1000>nextSacc){ saccTgt={x:rnd(-.14,.14),y:rnd(-.12,.12)}; nextSacc=now/1000+rnd(1.8,5); }
+    sacc.x=lerp(sacc.x,saccTgt.x,.03); sacc.y=lerp(sacc.y,saccTgt.y,.03);
+    if(mouseActive && (now-mouseT)<2500){ gx+=mouse.x*.7; gy+=mouse.y*.6; }
+    else { gx+=sacc.x; gy+=sacc.y; }
+  }
+  curGaze.x=lerp(curGaze.x,clamp(gx,-1,1),.15);
+  curGaze.y=lerp(curGaze.y,clamp(gy,-1,1),.15);
+
+  /* ----- blink scheduler ----- */
+  if(t>nextBlink){
+    blinkPhase=t; nextBlink = t + rnd(2.6,6.2)*tgt.blinkS + (Math.random()<.25?0:0);
+  }
+  // asymmetric blink curve: fast close, slower open
+  const bp = t - blinkPhase;
+  let bshape=1;
+  const closeT=.09, openT=.16*tgt.blinkS;
+  if(bp<closeT) bshape = 1 - (bp/closeT);
+  else if(bp<closeT+openT) bshape = (bp-closeT)/openT;
+  else bshape=1;
+  bshape=clamp(bshape,.04,1);
+  for(let e=0;e<2;e++){
+    let target = Math.min(blinkTgt[e], bshape);
+    blink[e]=lerp(blink[e], target, .5);
+  }
+
+  /* ----- transients ----- */
+  dyn.nodY=lerp(dyn.nodY,0,.06);
+  for(let i=transients.length-1;i>=0;i--){
+    const tr=transients[i]; let p=(t-tr.t)/tr.d;
+    if(p>=1){ if(tr.loop){ tr.t=t; p=0; } else { tr.end&&tr.end(); transients.splice(i,1); continue; } }
+    tr.f(clamp(p,0,1));
+  }
+
+  /* ----- glow (breathing + pulse) ----- */
+  const breathe = 1 + Math.sin(t*1.6)*0.06;
+  let glow = cur.glow*breathe;
+  if(pulseOn) glow *= 1 + Math.abs(Math.sin(t*3.4))*0.18;
+
+  renderEye(eyeL,t,glow);
+  renderEye(eyeR,t,glow);
+
+  // head tilt (questioning)
+  const gt=lerp(parseFloat(eyesG.dataset.gt||0), cur.gtilt, .12);
+  eyesG.dataset.gt=gt;
+  eyesG.setAttribute("transform",`rotate(${gt} ${CX} ${CY})`);
+
+  requestAnimationFrame(frame);
+}
+
+function renderEye(E,t,glow){
+  const cx = CX + E.sign*GAP;
+  const jit = cur.jitter ? (Math.sin(t*22+E.sign)*cur.jitter + rnd(-.3,.3)*cur.jitter) : 0;
+  const cy = CY + dyn.nodY + dyn.swoon*(E.side==='L'?1:1) + jit;
+  const b = blink[E.side==='L'?0:1];
+
+  let topH = Math.max(6, HALFH*cur.open*cur.topBend*b);
+  let botH = HALFH*cur.open*cur.botBend*b;   // can go negative (smile)
+  if(botH>=0) botH=Math.max(6,botH); else botH=Math.min(-4,botH);
+  const w = HALFW*(0.94+0.06*cur.open);
+
+  const d = eyePath(w, topH, botH);
+  E.body.setAttribute("d",d);
+  E.clipPath.setAttribute("d",d);
+  E.limbal.setAttribute("d",d);
+  E.bloom.setAttribute("d",d);
+  E.bloom.setAttribute("opacity", clamp(.35*glow,0,.9));
+
+  // eye group transform: position + inner-corner tilt (mirrored)
+  const tilt = cur.tilt * (E.side==='L'? 1 : -1);
+  E.g.setAttribute("transform",`translate(${cx} ${cy}) rotate(${tilt})`);
+
+  // gaze offsets with parallax (deeper layers move more)
+  const gx=curGaze.x*MAXGX, gy=curGaze.y*MAXGY;
+  const conv = dyn.converge*(E.side==='L'?1:-1); // eyes converge inward when focused
+  const px = gx + conv, py=gy;
+  // dark orb leads the gaze; catchlights ride the orb (~0.9); iris details trail
+  E.pupil.setAttribute("transform",`translate(${px} ${py}) scale(${cur.pupil})`);
+  E.refl.setAttribute("transform",`translate(${px} ${py}) scale(${cur.pupil})`);
+  E.rim.setAttribute("transform",`translate(${gx*.5} ${gy*.5})`);
+  E.ring1.setAttribute("transform",`translate(${gx*.15} ${gy*.15})`);
+  E.ring2.setAttribute("transform",`translate(${gx*.25} ${gy*.25})`);
+  const c1x=-E.sign*PR*.32, c1y=PY-PR*.42, c1rot=E.sign*14;
+  E.cat1.setAttribute("transform",`translate(${px*.9} ${py*.9}) rotate(${c1rot} ${c1x} ${c1y})`);
+  E.cat1b.setAttribute("transform",`translate(${px*.9} ${py*.9}) rotate(${c1rot} ${c1x} ${c1y})`);
+  E.cat2.setAttribute("transform",`translate(${px*.86} ${py*.86})`);
+  E.sheen.setAttribute("transform",`translate(${gx*.1} ${gy*.1})`);
+  // spinning + twinkling kawaii star
+  const sx=-E.sign*HALFW*.34, sy=-HALFH*.4;
+  E.star.setAttribute("transform",`translate(${gx*.3} ${gy*.3}) rotate(${(t*26)%360} ${sx} ${sy})`);
+  E.star.setAttribute("opacity",(0.35+0.5*Math.abs(Math.sin(t*1.3+E.sign)))*clamp(b,0,1));
+
+  // sparkles: drift + twinkle
+  for(const s of E.sparks){
+    const p=s._p;
+    const a=p.ang + t*p.drift*0.4;
+    const dx=Math.cos(a)*p.rad + Math.cos(t*p.spd+p.ph)*p.dr + gx*.2;
+    const dy=Math.sin(a)*p.rrad + Math.sin(t*p.spd+p.ph)*p.dr + gy*.2;
+    s.setAttribute("cx",dx); s.setAttribute("cy",dy);
+    s.setAttribute("opacity", (0.28+0.72*Math.abs(Math.sin(t*p.spd*1.7+p.ph)))*clamp(b,0,1));
+  }
+  const bp=E.bok._p;
+  E.bok.setAttribute("cx",Math.cos(t*bp.spd+bp.ph)*bp.rad*.6+gx*.15);
+  E.bok.setAttribute("cy",Math.sin(t*bp.spd+bp.ph)*bp.rrad*.6+gy*.15);
+
+  // rim/glow intensity
+  E.rim.setAttribute("opacity", clamp(.5*glow,0,1));
+  E.limbal.setAttribute("opacity", clamp(.55, .2,.8));
+}
+
+/* ---------- UI ---------- */
+const EMO=[["neutral","Neutral","1"],["happy","Happy","2"],["surprised","Surprised","3"],
+  ["sad","Sad","4"],["angry","Angry","5"],["sleepy","Sleepy","6"],["love","Love","7"],["wink","Wink","8"]];
+const PRE=[["idle","Idle","q"],["listening","Listening","w"],["question","Questioning","e"],
+  ["affirmative","Affirmative","r"],["focused","Dedicated","t"],["thinking","Thinking","y"]];
+const rowE=document.getElementById("rowEmotion"), rowP=document.getElementById("rowPresence");
+const btns={};
+function mkBtn(row,[id,label,key]){
+  const b=document.createElement("button"); b.className="chip"; b.dataset.id=id;
+  b.innerHTML=`${label} <span class="k">${key.toUpperCase()}</span>`;
+  b.onclick=()=>setExpr(id); row.appendChild(b); btns[id]=b;
+}
+EMO.forEach(x=>mkBtn(rowE,x)); PRE.forEach(x=>mkBtn(rowP,x));
+function updateButtons(name){ for(const id in btns) btns[id].classList.toggle("on", id===name); }
+updateButtons('neutral');
+
+/* input */
+addEventListener("pointermove",e=>{
+  const r=document.getElementById("wrap").getBoundingClientRect();
+  mouse.x=clamp((e.clientX-(r.left+r.width/2))/(r.width/2),-1,1);
+  mouse.y=clamp((e.clientY-(r.top+r.height/2))/(r.height/2),-1,1);
+  mouseActive=true; mouseT=performance.now();
+});
+const ui=document.getElementById("ui");
+const keyMap={};
+EMO.forEach(([id,,k])=>keyMap[k]=id); PRE.forEach(([id,,k])=>keyMap[k.toLowerCase()]=id);
+const numMap={"1":"neutral","2":"happy","3":"surprised","4":"sad","5":"sleepy","6":"love","7":"question","8":"affirmative","9":"focused"};
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="h"){ ui.classList.toggle("hidden"); }
+  else if(k==="f"){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+  else if(k===" "){ e.preventDefault(); blinkPhase=(performance.now()-t0)/1000; }
+  else if(numMap[k]) setExpr(numMap[k]);
+  else if(keyMap[k]) setExpr(keyMap[k]);
+});
+
+setExpr('neutral');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

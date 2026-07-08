@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "anime-eyes",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8712", "--directory", "anime-eye-research/prototype"],
+      "port": 8712
+    },
+    {
+      "name": "ciocu",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "ciocu", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

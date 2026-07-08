@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Anime Blue Eyes — Prototype</title>
+<style>
+  :root{ --chip:#efe0d2; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:#f0dac2;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; color:#5a463a; }
+  #stage{ position:fixed; inset:0; display:grid; place-items:center; }
+  #wrap{ position:relative; width:100vw; height:56.25vw; max-height:100vh; max-width:177.78vh; }
+  svg#face{ width:100%; height:100%; display:block; }
+
+  #ui{ position:fixed; left:0; right:0; bottom:0; padding:14px 16px 16px;
+    display:flex; flex-direction:column; gap:10px; align-items:center;
+    background:linear-gradient(0deg, rgba(240,218,194,.9), rgba(240,218,194,0));
+    transition:opacity .35s ease, transform .35s ease; z-index:5; }
+  #ui.hidden{ opacity:0; transform:translateY(30px); pointer-events:none; }
+  .row{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; }
+  .label{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-right:4px; }
+  button.chip{ appearance:none; border:1px solid rgba(120,80,60,.25); background:var(--chip);
+    color:#5a463a; padding:8px 13px; border-radius:999px; font-size:13px; cursor:pointer;
+    transition:all .15s ease; display:flex; align-items:center; gap:7px; }
+  button.chip:hover{ border-color:rgba(60,110,214,.6); background:#f7ecdf; transform:translateY(-1px); }
+  button.chip.on{ border-color:#2f6fd6; background:#e2ecfb; box-shadow:0 0 0 1px #2f6fd655; color:#173a86; }
+  .chip .k{ font-size:10px; opacity:.45; }
+  .hint{ font-size:11px; opacity:.45; }
+  .hint b{ color:#2f6fd6; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="wrap">
+    <svg id="face" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" aria-label="Anime blue eyes">
+      <defs>
+        <filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+        <filter id="softer" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+      </defs>
+
+      <rect x="0" y="0" width="1600" height="900" fill="#f0dac2"/>
+      <g id="eyes"></g>
+    </svg>
+  </div>
+</div>
+
+<div id="ui">
+  <div class="row" id="row"><span class="label">Expression</span></div>
+  <div class="hint">move mouse = gaze · <b>H</b> hide UI · <b>F</b> fullscreen · <b>Space</b> blink</div>
+</div>
+
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* layout */
+const CY=452, DX=232;                 // eye row height, half-distance between eyes
+const CLOSE=248, GXR=34, GYR=26;      // blink travel, gaze range
+const eyesG=document.getElementById("eyes");
+
+/* ---- eye-white silhouette: v4's big ROUNDED superellipse (less human than an almond) ----
+   symmetric rounded shape; `d` (dir) kept for API compatibility but shape is mirror-identical.  */
+const EW=132, ETH=120, EBH=116, EK=0.72;   // half-width, top height, bottom height, corner roundness
+function scleraPath(d){
+  const w=EW,tH=ETH,bH=EBH,kw=w*EK,kt=tH*EK,kb=bH*EK;
+  return `M 0 ${-tH} C ${kw} ${-tH} ${w} ${-kt} ${w} 0`+
+         ` C ${w} ${kb} ${kw} ${bH} 0 ${bH}`+
+         ` C ${-kw} ${bH} ${-w} ${kb} ${-w} 0`+
+         ` C ${-w} ${-kt} ${-kw} ${-tH} 0 ${-tH} Z`;
+}
+/* top-edge contour: left anchor → over the top → right anchor */
+function upperEdge(d){
+  const w=EW,tH=ETH,kw=w*EK,kt=tH*EK;
+  return `M ${-w} 0 C ${-w} ${-kt} ${-kw} ${-tH} 0 ${-tH} C ${kw} ${-tH} ${w} ${-kt} ${w} 0`;
+}
+/* upper lid skin cap: everything above the top edge */
+function upperCap(d){
+  const w=EW,tH=ETH,kw=w*EK,kt=tH*EK;
+  return `M ${-w} 0 C ${-w} ${-kt} ${-kw} ${-tH} 0 ${-tH} C ${kw} ${-tH} ${w} ${-kt} ${w} 0`+
+         ` L ${w+90} 0 L ${w+90} ${-(tH+360)} L ${-(w+90)} ${-(tH+360)} L ${-(w+90)} 0 Z`;
+}
+/* bottom-edge contour + lower lid cap */
+function lowerEdge(d){
+  const w=EW,bH=EBH,kw=w*EK,kb=bH*EK;
+  return `M ${w} 0 C ${w} ${kb} ${kw} ${bH} 0 ${bH} C ${-kw} ${bH} ${-w} ${kb} ${-w} 0`;
+}
+function lowerCap(d){
+  const w=EW,bH=EBH,kw=w*EK,kb=bH*EK;
+  return `M ${w} 0 C ${w} ${kb} ${kw} ${bH} 0 ${bH} C ${-kw} ${bH} ${-w} ${kb} ${-w} 0`+
+         ` L ${-(w+90)} 0 L ${-(w+90)} ${bH+360} L ${w+90} ${bH+360} L ${w+90} 0 Z`;
+}
+
+function buildEye(d, cx){
+  const g = el("g",{transform:`translate(${cx} ${CY})`});
+  const clipId = "sc"+(d>0?"R":"L");
+  const clip = el("clipPath",{id:clipId});
+  const clipShape = el("path",{d:scleraPath(d)}); clip.appendChild(clipShape); g.appendChild(clip);
+
+  // white eyeball
+  const sclera = el("path",{d:scleraPath(d), fill:"#fcfcff"});
+
+  const inner = el("g",{"clip-path":`url(#${clipId})`});
+
+  // --- iris (moves with gaze) : built ONLY from flat solid shapes, no gradients ---
+  const iris = el("g");
+  // stacked exactly like the reference (colour-picked base = #00081f):
+  //  - dark base is BIG and shares the pupil's near-black, so the top dark reaches down and
+  //    MERGES with the big pupil (no blue gap at the top);
+  //  - the blue is only a RING low around the sides/bottom;
+  //  - the light blue is SMALL and sits under the pupil, so the pupil crosses over it.
+  const c1 = el("ellipse",{cx:0, cy:-2, rx:84, ry:87, fill:"#00081f"}); // 1 · round dark base (dominant, dark top)
+  const c2 = el("ellipse",{cx:0, cy:22, rx:72, ry:54, fill:"#17408f"}); // 2 · dark blue OVAL, kept inside the base (dark rim all round)
+  const c3 = el("ellipse",{cx:0, cy:30, rx:48, ry:34, fill:"#3f86dd"}); // 3 · light blue OVAL, small, under pupil, inside c2
+  const c4 = el("ellipse",{cx:0, cy:2,  rx:40, ry:43, fill:"#00081f"}); // 4 · round dark pupil (BIG, merges with base)
+  const glare = el("ellipse",{cx:-30, cy:-40, rx:23, ry:31, fill:"#ffffff",
+                              transform:"rotate(-15 -30 -40)"});          // 5 · white glare, over the dark upper-left
+  const pupil = c4;
+  iris.append(c1,c2,c3,c4,glare);
+
+  inner.append(iris);
+
+  // --- eyelids (skin) that move for blink / expression ---
+  const upperLid = el("g");
+  const uCap  = el("path",{d:upperCap(d), fill:"#f0dac2"});
+  const uLash = el("path",{d:upperEdge(d), fill:"none", stroke:"#20140f", "stroke-width":11,
+                           "stroke-linecap":"round"});
+  const uLash2= el("path",{d:upperEdge(d), fill:"none", stroke:"#20140f", "stroke-width":5,
+                           "stroke-linecap":"round", opacity:".5"});
+  upperLid.append(uCap,uLash,uLash2);
+
+  const lowerLid = el("g");
+  const lCap  = el("path",{d:lowerCap(d), fill:"#f0dac2"});
+  const lLine = el("path",{d:lowerEdge(d), fill:"none", stroke:"#8a5a44", "stroke-width":3.5,
+                           "stroke-linecap":"round", opacity:".55"});
+  lowerLid.append(lCap,lLine);
+
+  // sclera lives under lids; lids clipped to sclera so they slide within the eye
+  const lidWrap = el("g",{"clip-path":`url(#${clipId})`});
+  lidWrap.append(upperLid, lowerLid);
+
+  g.append(sclera, inner, lidWrap);
+  eyesG.appendChild(g);
+  return {d,cx,g,iris,upperLid,lowerLid,pupil};
+}
+
+const eyeR = buildEye( 1, 800+DX);
+const eyeL = buildEye(-1, 800-DX);
+
+/* ---------- expressions (lid positions + iris scale + gaze) ----------
+   lidU  : upper lid drop (px, + = more closed / sleepier)
+   lidL  : lower lid rise (px, + = squint up)
+   iris  : iris scale
+   gaze  : base gaze {x,y}
+   speed : ease rate                                                      */
+const EXPR = {
+  neutral:   {lidU:0,  lidL:0,  iris:1.0,  gaze:{x:0,y:0},    speed:.14, blinkS:1},
+  happy:     {lidU:14, lidL:30, iris:1.0,  gaze:{x:0,y:.12},  speed:.16, blinkS:1.2},
+  surprised: {lidU:-26,lidL:6,  iris:.9,   gaze:{x:0,y:0},    speed:.3,  blinkS:1.4},
+  suspicious:{lidU:34, lidL:14, iris:1.02, gaze:{x:0,y:0},    speed:.16, blinkS:1.5},
+  sad:       {lidU:10, lidL:2,  iris:1.06, gaze:{x:0,y:.28},  speed:.09, blinkS:1.2},
+  sleepy:    {lidU:66, lidL:6,  iris:1.0,  gaze:{x:0,y:.18},  speed:.07, blinkS:2.4},
+};
+
+let cur={lidU:0,lidL:0,iris:1,gaze:{x:0,y:0}}, tgt=EXPR.neutral, name="neutral";
+let curGaze={x:0,y:0}, mouse={x:0,y:0}, mouseActive=false, mouseT=0;
+let sacc={x:0,y:0}, saccTgt={x:0,y:0}, nextSacc=0;
+let blink=1, blinkPhase=-9, nextBlink=1.5;
+const t0=performance.now();
+
+function setExpr(n){ if(!EXPR[n])return; name=n; tgt=EXPR[n]; updateButtons(); }
+
+function frame(now){
+  const t=(now-t0)/1000;
+  const s=tgt.speed;
+  cur.lidU=lerp(cur.lidU,tgt.lidU,s); cur.lidL=lerp(cur.lidL,tgt.lidL,s);
+  cur.iris=lerp(cur.iris,tgt.iris,s);
+  cur.gaze.x=lerp(cur.gaze.x,tgt.gaze.x,s); cur.gaze.y=lerp(cur.gaze.y,tgt.gaze.y,s);
+
+  // gaze: mouse or idle saccade
+  let gx=cur.gaze.x, gy=cur.gaze.y;
+  if(now/1000>nextSacc){ saccTgt={x:rnd(-.22,.22),y:rnd(-.16,.16)}; nextSacc=now/1000+rnd(1.6,4.5); }
+  sacc.x=lerp(sacc.x,saccTgt.x,.04); sacc.y=lerp(sacc.y,saccTgt.y,.04);
+  if(mouseActive && (now-mouseT)<2600){ gx+=mouse.x*.9; gy+=mouse.y*.8; }
+  else { gx+=sacc.x; gy+=sacc.y; }
+  curGaze.x=lerp(curGaze.x,clamp(gx,-1,1),.16); curGaze.y=lerp(curGaze.y,clamp(gy,-1,1),.16);
+
+  // blink
+  if(t>nextBlink){ blinkPhase=t; nextBlink=t+rnd(2.8,6.4)*tgt.blinkS; }
+  const bp=t-blinkPhase, cT=.08, oT=.17*tgt.blinkS;
+  if(bp<cT) blink=1-bp/cT; else if(bp<cT+oT) blink=(bp-cT)/oT; else blink=1;
+  blink=clamp(blink,0,1);
+
+  render(eyeR,t); render(eyeL,t);
+  requestAnimationFrame(frame);
+}
+
+function render(E,t){
+  const gx=curGaze.x*GXR, gy=curGaze.y*GYR;
+  E.iris.setAttribute("transform",`translate(${gx} ${gy}) scale(${cur.iris})`);
+  // pupil dilation subtle extra (kept via iris scale); gaze parallax already applied
+  const closeExtra=(1-blink)*CLOSE;
+  E.upperLid.setAttribute("transform",`translate(0 ${cur.lidU+closeExtra})`);
+  E.lowerLid.setAttribute("transform",`translate(0 ${-(cur.lidL)-(1-blink)*22})`);
+}
+
+/* ---- UI ---- */
+const LIST=[["neutral","Neutral"],["happy","Happy"],["surprised","Surprised"],
+  ["suspicious","Suspicious"],["sad","Sad"],["sleepy","Sleepy"]];
+const row=document.getElementById("row"), btns={};
+LIST.forEach(([id,label])=>{
+  const b=document.createElement("button"); b.className="chip"; b.textContent=label;
+  b.onclick=()=>setExpr(id); row.appendChild(b); btns[id]=b;
+});
+function updateButtons(){ for(const id in btns) btns[id].classList.toggle("on", id===name); }
+
+addEventListener("pointermove",e=>{
+  const r=document.getElementById("wrap").getBoundingClientRect();
+  mouse.x=clamp((e.clientX-(r.left+r.width/2))/(r.width/2),-1,1);
+  mouse.y=clamp((e.clientY-(r.top+r.height/2))/(r.height/2),-1,1);
+  mouseActive=true; mouseT=performance.now();
+});
+const ui=document.getElementById("ui");
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="h") ui.classList.toggle("hidden");
+  else if(k==="f"){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+  else if(k===" "){ e.preventDefault(); blinkPhase=(performance.now()-t0)/1000; }
+});
+
+setExpr("neutral");
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

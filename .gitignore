@@ -1,0 +1,18 @@
+# Dependencies / build output (ciocu/ also has its own nested .gitignore)
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+
+# Secrets — never commit. Defense-in-depth on top of ciocu/.gitignore.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Claude local settings (keep launch.json shared)
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
