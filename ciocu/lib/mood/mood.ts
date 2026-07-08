@@ -14,7 +14,10 @@ export interface UserEmotion {
   arousal: number;
 }
 
-export const BASELINE = { valence: 0.06, arousal: 0.12 }; // gentle resting warmth
+import { MOOD_KNOBS } from "@/lib/persona/personality";
+
+// Resting mood comes from her personality — a warmer, calmer character rests warmer.
+export const BASELINE = { valence: MOOD_KNOBS.baselineWarmth, arousal: MOOD_KNOBS.baselineArousal };
 const BOND_KEY = "ciocu.bond";
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
@@ -39,7 +42,7 @@ export function saveBond(bond: number): void {
  * agitated (never mirrored hostility). Empathy (how much she takes on) scales with bond.
  */
 export function absorb(mood: Mood, user: UserEmotion): Mood {
-  const empathy = 0.6 + mood.bond * 0.4;
+  const empathy = MOOD_KNOBS.empathy + mood.bond * (MOOD_KNOBS.empathyBondMax - MOOD_KNOBS.empathy);
   let targetV: number;
   let targetA: number;
   if (user.valence >= 0) {
@@ -52,7 +55,7 @@ export function absorb(mood: Mood, user: UserEmotion): Mood {
   return {
     valence: clamp(mood.valence + (targetV - mood.valence) * empathy, -1, 1),
     arousal: clamp(mood.arousal + (targetA - mood.arousal) * empathy, 0, 1),
-    bond: clamp(mood.bond + 0.012, 0, 1), // each real exchange deepens the bond a little
+    bond: clamp(mood.bond + MOOD_KNOBS.bondPerExchange, 0, 1), // each exchange deepens the bond
   };
 }
 
@@ -60,7 +63,7 @@ export function absorb(mood: Mood, user: UserEmotion): Mood {
  *  linger for a good while — like a real one — so this is slow (~40s time-constant). */
 export function relax(mood: Mood, dt: number): Mood {
   const rate = clamp(dt / 40, 0, 0.25);
-  const restV = BASELINE.valence + mood.bond * 0.12; // more bonded => warmer resting face
+  const restV = BASELINE.valence + mood.bond * MOOD_KNOBS.bondWarmthGain; // bond warms resting face
   const restA = BASELINE.arousal;
   return {
     valence: mood.valence + (restV - mood.valence) * rate,

@@ -40,7 +40,10 @@ export async function POST(req: NextRequest) {
       messages,
       stream: true,
       temperature: 0.8,
-      max_tokens: 320,
+      max_tokens: 400,
+      // deepseek-v4-flash emits hidden reasoning tokens; left on, they can starve the visible
+      // reply and she goes silent. Disable so the whole budget is her actual words.
+      reasoning: { enabled: false },
     }),
   });
 
