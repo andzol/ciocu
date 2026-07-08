@@ -5,11 +5,17 @@ import { Eye, EyeSlash } from "@phosphor-icons/react";
 import type { AttentionHandle } from "@/lib/attention/faceAttention";
 
 type UIState = "off" | "starting" | "on" | "denied" | "error";
+interface DebugInfo {
+  faces: number;
+  yaw: number;
+  pitch: number;
+  attending: boolean;
+}
 
 /**
  * Opt-in "eye contact" control. Off by default — Ciocu never grabs the camera on load. When on,
- * the camera runs on-device (MediaPipe) and an honest live dot shows it's active. Toggling off
- * stops every track immediately.
+ * the camera runs on-device (MediaPipe) and an honest live dot shows it's active. A status line
+ * tells you whether she currently sees you. Add ?debug to the URL for the raw detection numbers.
  */
 export default function PresenceControl({
   onAttention,
@@ -19,22 +25,32 @@ export default function PresenceControl({
   onVoice: (level: number) => void;
 }) {
   const [state, setState] = useState<UIState>("off");
+  const [attending, setAttending] = useState(false);
+  const [debugOn, setDebugOn] = useState(false);
+  const [debug, setDebug] = useState<DebugInfo | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
 
-  useEffect(() => () => handleRef.current?.stop(), []);
+  useEffect(() => {
+    setDebugOn(new URLSearchParams(window.location.search).has("debug"));
+    return () => handleRef.current?.stop();
+  }, []);
 
   async function enable() {
     setState("starting");
     try {
       const { startAttention } = await import("@/lib/attention/faceAttention");
       handleRef.current = await startAttention({
-        onAttention,
+        onAttention: (a) => {
+          setAttending(a);
+          onAttention(a);
+        },
         onVoice,
         onStatus: (s) => {
           if (s === "running") setState("on");
           else if (s === "denied") setState("denied");
           else if (s === "error") setState("error");
         },
+        onDebug: debugOn ? (info) => setDebug(info) : undefined,
       });
     } catch {
       setState("error");
@@ -46,6 +62,8 @@ export default function PresenceControl({
     handleRef.current = null;
     onAttention(false);
     onVoice(0);
+    setAttending(false);
+    setDebug(null);
     setState("off");
   }
 
@@ -68,6 +86,22 @@ export default function PresenceControl({
               : "Couldn't start the camera."}
         </span>
       )}
+
+      {active && (
+        <span
+          className={`presence-status${attending ? " presence-status--met" : ""}`}
+          role="status"
+        >
+          <span className="presence-status-dot" aria-hidden="true" />
+          {attending ? "Eye contact — she sees you" : "Looking for you…"}
+          {debugOn && debug && (
+            <span className="presence-debug">
+              {` · faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)}`}
+            </span>
+          )}
+        </span>
+      )}
+
       <button
         type="button"
         className={`icon-button${active ? " icon-button--active" : ""}`}
@@ -77,7 +111,7 @@ export default function PresenceControl({
         title={label}
       >
         {active ? <Eye size={22} weight="fill" /> : <EyeSlash size={22} />}
-        {active && <span className="live-dot" aria-hidden="true" />}
+        {active && <span className={`live-dot${attending ? " live-dot--met" : ""}`} aria-hidden="true" />}
       </button>
     </div>
   );
