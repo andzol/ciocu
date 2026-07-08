@@ -12,6 +12,7 @@ import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import { CIOCU_SYSTEM } from "@/lib/llm/persona";
 import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/lib/memory/store";
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
+import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -26,6 +27,7 @@ export default function Home() {
   const messagesRef = useRef<ChatMessage[]>([]);
   const voiceRef = useRef<VoiceHandle | null>(null);
   const sendRef = useRef<(text: string) => void>(() => {});
+  const moodRef = useRef<Mood>({ valence: BASELINE.valence, arousal: BASELINE.arousal, bond: 0 });
 
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,6 +47,46 @@ export default function Home() {
       /* memory is best-effort; never block the conversation on it */
     }
   }, []);
+
+  const pushMood = useCallback(() => {
+    const m = moodRef.current;
+    engineRef.current?.setMood(m.valence, m.arousal);
+  }, []);
+
+  // In-the-moment emotion read (parallel, non-blocking): she absorbs how you feel -> her eyes.
+  const readMood = useCallback(
+    async (mapped: { role: "user" | "assistant"; content: string }[]) => {
+      try {
+        const res = await fetch("/api/mood", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: mapped }),
+        });
+        if (!res.ok) return;
+        const emotion = await res.json();
+        moodRef.current = absorb(moodRef.current, emotion);
+        saveBond(moodRef.current.bond);
+        pushMood();
+      } catch {
+        /* mood is best-effort */
+      }
+    },
+    [pushMood],
+  );
+
+  // Load persisted bond; ease mood back to baseline over time and keep the eyes in sync.
+  useEffect(() => {
+    moodRef.current = { valence: BASELINE.valence, arousal: BASELINE.arousal, bond: loadBond() };
+    let last = performance.now();
+    const id = setInterval(() => {
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      moodRef.current = relax(moodRef.current, dt);
+      pushMood();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [pushMood]);
 
   // Load (or start) the persisted thread so the conversation survives reloads.
   useEffect(() => {
@@ -80,13 +122,17 @@ export default function Home() {
       persist("user", text);
       engineRef.current?.setState("thinking");
 
+      const mapped = history.slice(-24).map((m) => ({
+        role: (m.role === "ciocu" ? "assistant" : "user") as LLMRole,
+        content: m.text,
+      }));
       const llmMessages: { role: LLMRole; content: string }[] = [
         { role: "system", content: CIOCU_SYSTEM },
-        ...history.slice(-24).map((m) => ({
-          role: (m.role === "ciocu" ? "assistant" : "user") as LLMRole,
-          content: m.text,
-        })),
+        ...mapped,
       ];
+
+      // she feels how you feel, in parallel with composing her reply
+      readMood(mapped as { role: "user" | "assistant"; content: string }[]);
 
       // placeholder bubble that fills in as tokens stream into the drawer
       applyMessages([...history, { role: "ciocu", text: "" }]);
@@ -129,7 +175,7 @@ export default function Home() {
         generatingRef.current = false;
       }
     },
-    [applyMessages, persist],
+    [applyMessages, persist, readMood],
   );
   sendRef.current = sendMessage;
 

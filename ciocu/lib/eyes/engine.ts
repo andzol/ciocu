@@ -63,6 +63,9 @@ export interface EyeEngineHandle {
   setState: (name: StateName) => void;
   /** 0..1 live voice level (VAD) — brightens the glow while she's receiving you. */
   setVoiceLevel: (v: number) => void;
+  /** Continuous mood baseline (mental state). valence -1..1, arousal 0..1. Biases the resting
+   *  expression on top of the discrete state — this is the emotion layer (see ciocu-memory-emotion). */
+  setMood: (valence: number, arousal: number) => void;
   destroy: () => void;
 }
 
@@ -102,7 +105,7 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   container.appendChild(svg);
 
   const eyesG = svg.querySelector("#eyes") as SVGGElement;
-  eyesG.style.transition = "filter 600ms ease";
+  // filter (hue/saturation) is now driven per-frame in JS (eased), so no CSS transition.
   eyesG.style.willChange = "filter";
 
   function buildEye(side: "L" | "R"): Eye {
@@ -167,6 +170,10 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   const transients: Transient[] = [];
   let pulseOn = false;
   let voiceLevel = 0, voiceTarget = 0; // VAD glow (set from the gated mic)
+  // Mood (mental state) — a continuous emotion-layer baseline, eased slowly toward its target.
+  // valence -1..1 (down↔warm), arousal 0..1 (calm↔lit-up). Biases shape/glow/colour on top of
+  // whatever discrete preset is active. Neutral mood (0,0) leaves the preset look untouched.
+  let moodV = 0, moodA = 0, moodVTarget = 0, moodATarget = 0;
   let gtStore = 0;
   const t0 = performance.now();
   let raf = 0;
@@ -186,7 +193,6 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   function setState(name: StateName) {
     if (!PRESETS[name]) return;
     tgt = PRESETS[name];
-    eyesG.style.filter = `hue-rotate(${tgt.hue}deg) saturate(${tgt.sat})`;
     dyn.converge = 0; dyn.swoon = 0;
     if (tgt.enter) runRoutine(tgt.enter);
   }
@@ -197,10 +203,17 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     const cy = CY + dyn.nodY + dyn.swoon + jit;
     const b = blink[E.side === "L" ? 0 : 1];
 
-    const topH = Math.max(6, HALFH * cur.open * cur.topBend * b);
-    let botH = HALFH * cur.open * cur.botBend * b;
+    // Mood layer: positive valence -> upturned/happy; negative -> droop/narrow; arousal -> wider,
+    // bigger pupil. At mood (0,0) these are all zero, so the preset look is untouched.
+    const mOpen = cur.open + moodA * 0.18 - Math.max(0, -moodV) * 0.1;
+    const mBot = cur.botBend - Math.max(0, moodV) * 1.25;
+    const mTilt = cur.tilt + (moodV < 0 ? moodV * 12 : 0);
+    const mPupil = cur.pupil + moodA * 0.1 + Math.max(0, moodV) * 0.08;
+
+    const topH = Math.max(6, HALFH * mOpen * cur.topBend * b);
+    let botH = HALFH * mOpen * mBot * b;
     if (botH >= 0) botH = Math.max(6, botH); else botH = Math.min(-4, botH);
-    const w = HALFW * (0.94 + 0.06 * cur.open);
+    const w = HALFW * (0.94 + 0.06 * mOpen);
 
     const d = eyePath(w, topH, botH);
     E.body.setAttribute("d", d);
@@ -212,15 +225,15 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     const shadeY = (topH / (HALFH * 0.94)).toFixed(3);
     E.topShade.setAttribute("transform", `scale(1 ${shadeY})`);
 
-    const tilt = cur.tilt * (E.side === "L" ? 1 : -1);
+    const tilt = mTilt * (E.side === "L" ? 1 : -1);
     E.g.setAttribute("transform", `translate(${cx} ${cy}) rotate(${tilt})`);
 
     const gx = curGaze.x * MAXGX, gy = curGaze.y * MAXGY;
     const conv = dyn.converge * (E.side === "L" ? 1 : -1);
     const px = gx + conv, py = gy;
-    E.pupil.setAttribute("transform", `translate(${px} ${py}) scale(${cur.pupil})`);
-    E.refl.setAttribute("transform", `translate(${px} ${py}) scale(${cur.pupil})`);
-    E.warmRefl.setAttribute("transform", `translate(${px * 0.78} ${py * 0.78}) scale(${cur.pupil})`);
+    E.pupil.setAttribute("transform", `translate(${px} ${py}) scale(${mPupil})`);
+    E.refl.setAttribute("transform", `translate(${px} ${py}) scale(${mPupil})`);
+    E.warmRefl.setAttribute("transform", `translate(${px * 0.78} ${py * 0.78}) scale(${mPupil})`);
     E.rim.setAttribute("transform", `translate(${gx * 0.5} ${gy * 0.5})`);
     E.ring1.setAttribute("transform", `translate(${gx * 0.15} ${gy * 0.15})`);
     E.ring2.setAttribute("transform", `translate(${gx * 0.25} ${gy * 0.25})`);
@@ -256,10 +269,17 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     last = now;
 
     const s = tgt.speed;
-    for (const k of ["open", "topBend", "botBend", "tilt", "pupil", "glow", "gtilt", "jitter"] as const)
+    for (const k of ["open", "topBend", "botBend", "tilt", "pupil", "glow", "gtilt", "jitter", "hue", "sat"] as const)
       cur[k] = lerp(cur[k], tgt[k], s);
     cur.gaze.x = lerp(cur.gaze.x, tgt.gaze.x, s);
     cur.gaze.y = lerp(cur.gaze.y, tgt.gaze.y, s);
+
+    // Mood eases slowly (a mental state shifts gently). Then colour: negative valence desaturates
+    // (a muted, tender read); a small hue nudge warms/cools. Composed with the preset's hue/sat.
+    moodV = lerp(moodV, moodVTarget, 0.02);
+    moodA = lerp(moodA, moodATarget, 0.03);
+    const satMul = 1 - Math.max(0, -moodV) * 0.5;
+    eyesG.style.filter = `hue-rotate(${(cur.hue + moodV * 8).toFixed(1)}deg) saturate(${(cur.sat * satMul).toFixed(3)})`;
 
     let gx = cur.gaze.x, gy = cur.gaze.y;
     if (now / 1000 > nextMicro) { microTgt = { x: rnd(-0.05, 0.05), y: rnd(-0.02, 0.02) }; nextMicro = now / 1000 + rnd(0.4, 1.3); }
@@ -308,6 +328,9 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     if (pulseOn) glow *= 1 + Math.abs(Math.sin(t * 3.4)) * 0.18;
     voiceLevel = lerp(voiceLevel, voiceTarget, 0.3);
     if (voiceLevel > 0.001) glow *= 1 + voiceLevel * 0.5;
+    glow *= 1 + moodA * 0.28 + moodV * 0.14; // aroused/warm brightens, low/sad dims
+
+
 
     renderEye(eyeL, t, glow);
     renderEye(eyeR, t, glow);
@@ -338,6 +361,10 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     setState,
     setVoiceLevel(v: number) {
       voiceTarget = clamp(v, 0, 1);
+    },
+    setMood(valence: number, arousal: number) {
+      moodVTarget = clamp(valence, -1, 1);
+      moodATarget = clamp(arousal, 0, 1);
     },
     destroy() {
       cancelAnimationFrame(raf);
