@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import EyeStage from "@/components/EyeStage";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
@@ -9,51 +9,152 @@ import PresenceControl from "@/components/PresenceControl";
 import VersionBadge from "@/components/VersionBadge";
 import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
-import type { StateName } from "@/lib/eyes/presets";
+import { CIOCU_SYSTEM } from "@/lib/llm/persona";
+import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/lib/memory/store";
+import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
+const ERROR_LINE = "I lost my thread for a second — say that again?";
 
-// M1 mock: stands in for the LLM (arrives in M3). Picks a reply + an eye state from keywords so
-// the whole interaction shape — you write, Ciocu reacts in text and in her eyes — is testable now.
-function mockReact(input: string): { reply: string; state: StateName } {
-  const t = input.toLowerCase();
-  if (/\b(hi|hello|hey|hallo|szia)\b/.test(t)) return { reply: "Hello. It's good to see you.", state: "happy" };
-  if (t.includes("?")) return { reply: "Let me think about that with you.", state: "thinking" };
-  if (/\b(love|thank|thanks)\b/.test(t)) return { reply: "That warms me.", state: "love" };
-  if (/\b(sad|tired|hard|stress)\b/.test(t)) return { reply: "I'm listening. Take your time.", state: "listening" };
-  if (/\b(remember|memory|recall)\b/.test(t)) return { reply: "I'll keep this. Your memory stays yours.", state: "affirmative" };
-  return { reply: "I hear you.", state: "listening" };
-}
+type LLMRole = "system" | "user" | "assistant";
 
 export default function Home() {
   const engineRef = useRef<EyeEngineHandle | null>(null);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attendingRef = useRef(false);
+  const generatingRef = useRef(false);
+  const threadIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const voiceRef = useRef<VoiceHandle | null>(null);
+  const sendRef = useRef<(text: string) => void>(() => {});
+
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [attending, setAttending] = useState(false);
 
-  // M2: eye contact drives presence. Looking at Ciocu -> listening; looking away -> idle.
-  const handleAttention = useCallback((attending: boolean) => {
-    attendingRef.current = attending;
-    engineRef.current?.setState(attending ? "listening" : "idle");
+  const applyMessages = useCallback((next: ChatMessage[]) => {
+    messagesRef.current = next;
+    setMessages(next);
+  }, []);
+
+  const persist = useCallback(async (role: "user" | "ciocu", text: string) => {
+    const threadId = threadIdRef.current;
+    if (!threadId) return;
+    try {
+      await appendMessage({ id: newId(), threadId, role, text, ts: Date.now() });
+    } catch {
+      /* memory is best-effort; never block the conversation on it */
+    }
+  }, []);
+
+  // Load (or start) the persisted thread so the conversation survives reloads.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const existing = await getLatestThreadId();
+        const threadId = existing ?? newId();
+        threadIdRef.current = threadId;
+        if (existing) {
+          const prior = await getThreadMessages(threadId);
+          if (!cancelled && prior.length) {
+            applyMessages(prior.map((m) => ({ role: m.role, text: m.text })));
+          }
+        }
+      } catch {
+        threadIdRef.current = newId();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyMessages]);
+
+  const sendMessage = useCallback(
+    async (raw: string) => {
+      const text = raw.trim();
+      if (!text || generatingRef.current) return;
+      generatingRef.current = true;
+
+      const history: ChatMessage[] = [...messagesRef.current, { role: "user", text }];
+      applyMessages(history);
+      persist("user", text);
+      engineRef.current?.setState("thinking");
+
+      const llmMessages: { role: LLMRole; content: string }[] = [
+        { role: "system", content: CIOCU_SYSTEM },
+        ...history.slice(-24).map((m) => ({
+          role: (m.role === "ciocu" ? "assistant" : "user") as LLMRole,
+          content: m.text,
+        })),
+      ];
+
+      // placeholder bubble that fills in as tokens stream into the drawer
+      applyMessages([...history, { role: "ciocu", text: "" }]);
+
+      let reply = "";
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: llmMessages }),
+        });
+        if (!res.ok || !res.body) throw new Error("bad response");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          reply += decoder.decode(value, { stream: true });
+          const next = [...messagesRef.current];
+          next[next.length - 1] = { role: "ciocu", text: reply };
+          applyMessages(next);
+        }
+
+        reply = reply.trim() || "…";
+        const finalized = [...messagesRef.current];
+        finalized[finalized.length - 1] = { role: "ciocu", text: reply };
+        applyMessages(finalized);
+        setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
+        persist("ciocu", reply);
+        if (!attendingRef.current) engineRef.current?.setState("neutral");
+        else engineRef.current?.setState("listening");
+      } catch {
+        const errored = [...messagesRef.current];
+        errored[errored.length - 1] = { role: "ciocu", text: ERROR_LINE };
+        applyMessages(errored);
+        setCaption(ERROR_LINE);
+        engineRef.current?.setState("neutral");
+      } finally {
+        generatingRef.current = false;
+      }
+    },
+    [applyMessages, persist],
+  );
+  sendRef.current = sendMessage;
+
+  // Voice input (Web Speech), created once, driven by attention below.
+  useEffect(() => {
+    voiceRef.current = createVoice({ onFinal: (t) => sendRef.current(t) });
+    return () => voiceRef.current?.stop();
+  }, []);
+
+  // Eye contact drives presence AND gates voice: she only listens (mic) while she sees you.
+  const handleAttention = useCallback((next: boolean) => {
+    attendingRef.current = next;
+    setAttending(next);
+    if (!generatingRef.current) engineRef.current?.setState(next ? "listening" : "idle");
   }, []);
   const handleVoice = useCallback((level: number) => {
     engineRef.current?.setVoiceLevel(level);
   }, []);
 
-  const handleSend = useCallback((text: string) => {
-    setMessages((prev) => [...prev, { role: "user", text }]);
-    const { reply, state } = mockReact(text);
-    engineRef.current?.setState(state);
-    setCaption(reply);
-    setMessages((prev) => [...prev, { role: "ciocu", text: reply }]);
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    // settle back to whatever presence eye-contact implies, not a blank neutral
-    settleTimer.current = setTimeout(
-      () => engineRef.current?.setState(attendingRef.current ? "listening" : "neutral"),
-      4500,
-    );
-  }, []);
+  useEffect(() => {
+    const v = voiceRef.current;
+    if (!v?.supported) return;
+    if (attending) v.start();
+    else v.stop();
+  }, [attending]);
 
   return (
     <main className="stage">
@@ -76,7 +177,7 @@ export default function Home() {
       </div>
 
       <VersionBadge />
-      <ChatDrawer messages={messages} onSend={handleSend} />
+      <ChatDrawer messages={messages} onSend={sendMessage} />
     </main>
   );
 }
