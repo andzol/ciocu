@@ -1,5 +1,5 @@
 // Framework-agnostic eye engine. Builds the two-eye SVG face into a container element and
-// runs its own rAF loop. Ported from anime-eye-research/prototype (v4 "liquid-eye").
+// runs its own rAF loop. Ported from anime-eye-research/prototype (v6 "plush companion").
 // Renderer-agnostic by design (research doc 04): React just mounts/unmounts it.
 
 import { PRESETS, type Preset, type Routine, type StateName } from "./presets";
@@ -18,26 +18,26 @@ const el = (n: string, a: Record<string, string | number> = {}): SVGElement => {
 // layout (viewBox units, 1600x900)
 // CY near the vertical middle of the viewBox so the eyes sit centered in their region (the gap
 // between the logo and the caption), a touch high for a friendlier read (research doc 04).
-const CX = 800, CY = 440, GAP = 196;
-const HALFW = 152, HALFH = 216, K = 0.72;
-const MAXGX = 48, MAXGY = 40;
-const PR = HALFW * 0.52, PY = HALFH * 0.08;
+const CX = 800, CY = 448, GAP = 178;
+const HALFW = 166, HALFH = 214, K = 0.76;
+const MAXGX = 44, MAXGY = 34;
+const PR = HALFW * 0.58, PY = HALFH * 0.12;
 
 const DEFS = `
   <radialGradient id="bg" cx="50%" cy="42%" r="75%">
-    <stop offset="0%" stop-color="#0d131d"/><stop offset="60%" stop-color="#080b12"/><stop offset="100%" stop-color="#04060a"/>
+    <stop offset="0%" stop-color="#101620"/><stop offset="58%" stop-color="#080c13"/><stop offset="100%" stop-color="#030509"/>
   </radialGradient>
-  <radialGradient id="iris" cx="50%" cy="70%" r="80%">
-    <stop offset="0%" stop-color="#f6ffff"/><stop offset="28%" stop-color="#b3f5ff"/><stop offset="60%" stop-color="#49d7f2"/><stop offset="85%" stop-color="#178fb8"/><stop offset="100%" stop-color="#0a4257"/>
+  <radialGradient id="iris" cx="50%" cy="72%" r="82%">
+    <stop offset="0%" stop-color="#ffffff"/><stop offset="24%" stop-color="#d8fff8"/><stop offset="55%" stop-color="#74f3e3"/><stop offset="82%" stop-color="#25a7c8"/><stop offset="100%" stop-color="#082e45"/>
   </radialGradient>
   <linearGradient id="irisTop" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#04203a" stop-opacity=".6"/><stop offset="45%" stop-color="#04203a" stop-opacity="0"/>
+    <stop offset="0%" stop-color="#052037" stop-opacity=".48"/><stop offset="48%" stop-color="#052037" stop-opacity="0"/>
   </linearGradient>
-  <radialGradient id="pupilG" cx="50%" cy="36%" r="68%">
-    <stop offset="0%" stop-color="#0e4256"/><stop offset="42%" stop-color="#052734"/><stop offset="78%" stop-color="#02141d"/><stop offset="100%" stop-color="#010b12"/>
+  <radialGradient id="pupilG" cx="50%" cy="33%" r="70%">
+    <stop offset="0%" stop-color="#15506a"/><stop offset="34%" stop-color="#082a3c"/><stop offset="74%" stop-color="#02131d"/><stop offset="100%" stop-color="#00070c"/>
   </radialGradient>
   <radialGradient id="rim" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#f4ffff"/><stop offset="55%" stop-color="#b8f8ff"/><stop offset="100%" stop-color="#b8f8ff" stop-opacity="0"/>
+    <stop offset="0%" stop-color="#fff7d6"/><stop offset="38%" stop-color="#d8fff6"/><stop offset="100%" stop-color="#9ef8ff" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="sheen" x1="0" y1="0" x2="0.7" y2="1">
     <stop offset="0%" stop-color="#ffffff" stop-opacity=".5"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
@@ -53,7 +53,8 @@ interface BokP { ang: number; rad: number; rrad: number; spd: number; ph: number
 interface Eye {
   side: "L" | "R"; sign: number; g: SVGElement; clipPath: SVGElement; bloom: SVGElement;
   body: SVGElement; limbal: SVGElement; rim: SVGElement; pupil: SVGElement; refl: SVGElement;
-  cat1: SVGElement; cat1b: SVGElement; cat2: SVGElement; star: SVGElement; sheen: SVGElement;
+  warmRefl: SVGElement; cat1: SVGElement; cat1b: SVGElement; cat2: SVGElement; cat3: SVGElement;
+  star: SVGElement; sheen: SVGElement;
   topShade: SVGElement; ring1: SVGElement; ring2: SVGElement;
   sparks: (SVGElement & { _p: SparkP })[]; bok: SVGElement & { _p: BokP };
 }
@@ -113,44 +114,46 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     clip.appendChild(clipPath);
     g.appendChild(clip);
 
-    const bloom = el("path", { fill: "#37e6ff", filter: "url(#bloom)", opacity: ".55" });
+    const bloom = el("path", { fill: "#5ffff1", filter: "url(#bloom)", opacity: ".45" });
     const body = el("path", { fill: "url(#iris)" });
     const inner = el("g", { "clip-path": `url(#${clipId})` });
 
     const topShade = el("ellipse", { cx: 0, cy: -HALFH * 0.5, rx: HALFW * 1.15, ry: HALFH * 0.72, fill: "url(#irisTop)" });
-    const ring1 = el("ellipse", { cx: 0, cy: 6, rx: HALFW * 0.66, ry: HALFH * 0.66, fill: "none", stroke: "#eafcff", "stroke-width": 2, opacity: ".07" });
-    const ring2 = el("ellipse", { cx: 0, cy: 10, rx: HALFW * 0.42, ry: HALFH * 0.42, fill: "none", stroke: "#eafcff", "stroke-width": 2, opacity: ".05" });
-    const rim = el("ellipse", { cx: 0, cy: HALFH * 0.5, rx: HALFW * 0.7, ry: HALFH * 0.22, fill: "url(#rim)", filter: "url(#soft)", opacity: ".9" });
-    const pupil = el("ellipse", { cx: 0, cy: PY, rx: PR, ry: PR, fill: "url(#pupilG)" });
-    const refl = el("ellipse", { cx: 0, cy: PY + PR * 0.5, rx: PR * 0.58, ry: PR * 0.3, fill: "#9df7ff", opacity: ".22", filter: "url(#soft)" });
-    const c1x = -sign * PR * 0.32, c1y = PY - PR * 0.42;
-    const cat1 = el("ellipse", { cx: c1x, cy: c1y, rx: PR * 0.42, ry: PR * 0.5, fill: "#ffffff", transform: `rotate(${sign * 14} ${c1x} ${c1y})`, opacity: ".99" });
-    const cat1b = el("ellipse", { cx: c1x, cy: c1y, rx: PR * 0.42, ry: PR * 0.5, fill: "#ffffff", filter: "url(#spark)", opacity: ".5", transform: `rotate(${sign * 14} ${c1x} ${c1y})` });
-    const cat2 = el("circle", { cx: sign * PR * 0.34, cy: PY + PR * 0.44, r: PR * 0.16, fill: "#ffffff", opacity: ".92" });
-    const star = el("path", { d: starPath(-sign * HALFW * 0.34, -HALFH * 0.4, 13, 5), fill: "#ffffff", opacity: ".85", filter: "url(#spark)" });
+    const ring1 = el("ellipse", { cx: 0, cy: 7, rx: HALFW * 0.7, ry: HALFH * 0.64, fill: "none", stroke: "#f3ffff", "stroke-width": 2, opacity: ".09" });
+    const ring2 = el("ellipse", { cx: 0, cy: 10, rx: HALFW * 0.46, ry: HALFH * 0.42, fill: "none", stroke: "#eafffb", "stroke-width": 2, opacity: ".06" });
+    const rim = el("ellipse", { cx: 0, cy: HALFH * 0.5, rx: HALFW * 0.78, ry: HALFH * 0.19, fill: "url(#rim)", filter: "url(#soft)", opacity: ".86" });
+    const pupil = el("ellipse", { cx: 0, cy: PY, rx: PR, ry: PR * 0.98, fill: "url(#pupilG)" });
+    const refl = el("ellipse", { cx: 0, cy: PY + PR * 0.52, rx: PR * 0.62, ry: PR * 0.24, fill: "#b9fff1", opacity: ".25", filter: "url(#soft)" });
+    const warmRefl = el("ellipse", { cx: -sign * PR * 0.08, cy: PY + PR * 0.72, rx: PR * 0.34, ry: PR * 0.12, fill: "#ffe8a7", opacity: ".16", filter: "url(#soft)" });
+    const c1x = -sign * PR * 0.36, c1y = PY - PR * 0.5;
+    const cat1 = el("ellipse", { cx: c1x, cy: c1y, rx: PR * 0.36, ry: PR * 0.43, fill: "#ffffff", transform: `rotate(${sign * 13} ${c1x} ${c1y})`, opacity: ".99" });
+    const cat1b = el("ellipse", { cx: c1x, cy: c1y, rx: PR * 0.36, ry: PR * 0.43, fill: "#ffffff", filter: "url(#spark)", opacity: ".44", transform: `rotate(${sign * 13} ${c1x} ${c1y})` });
+    const cat2 = el("circle", { cx: sign * PR * 0.36, cy: PY + PR * 0.42, r: PR * 0.13, fill: "#ffffff", opacity: ".82" });
+    const cat3 = el("circle", { cx: -sign * PR * 0.02, cy: PY - PR * 0.7, r: PR * 0.065, fill: "#ffffff", opacity: ".70" });
+    const star = el("path", { d: starPath(-sign * HALFW * 0.36, -HALFH * 0.38, 11, 4), fill: "#ffffff", opacity: ".62", filter: "url(#spark)" });
     const sheen = el("ellipse", { cx: -sign * 20, cy: -HALFH * 0.5, rx: HALFW * 0.7, ry: HALFH * 0.32, fill: "url(#sheen)", opacity: ".5" });
 
     const sparks: (SVGElement & { _p: SparkP })[] = [];
-    for (let i = 0; i < 7; i++) {
-      const s = el("circle", { r: rnd(1.6, 4.2), fill: "#f6ffff", filter: "url(#spark)" }) as SVGElement & { _p: SparkP };
+    for (let i = 0; i < 5; i++) {
+      const s = el("circle", { r: rnd(1.3, 3.2), fill: "#f6ffff", filter: "url(#spark)" }) as SVGElement & { _p: SparkP };
       s._p = { ang: rnd(0, Math.PI * 2), rad: rnd(HALFW * 0.28, HALFW * 0.82), rrad: rnd(HALFH * 0.28, HALFH * 0.78), dr: rnd(2, 7), spd: rnd(0.5, 1.5), ph: rnd(0, 6.28), drift: rnd(0.2, 0.6) * (Math.random() < 0.5 ? -1 : 1) };
       sparks.push(s);
     }
-    const bok = el("circle", { r: rnd(10, 16), fill: "#bff6ff", filter: "url(#bloom)", opacity: ".25" }) as SVGElement & { _p: BokP };
+    const bok = el("circle", { r: rnd(9, 14), fill: "#cffff8", filter: "url(#bloom)", opacity: ".22" }) as SVGElement & { _p: BokP };
     bok._p = { ang: rnd(0, 6.28), rad: HALFW * 0.5, rrad: HALFH * 0.5, spd: 0.4, ph: rnd(0, 6.28) };
 
-    inner.append(topShade, ring1, ring2, rim, pupil, refl, sheen, bok, cat2, cat1b, cat1, star, ...sparks);
-    const limbal = el("path", { fill: "none", stroke: "#063b4a", "stroke-width": 7, opacity: ".55" });
+    inner.append(topShade, ring1, ring2, rim, pupil, refl, warmRefl, sheen, bok, cat2, cat3, cat1b, cat1, star, ...sparks);
+    const limbal = el("path", { fill: "none", stroke: "#0b5161", "stroke-width": 6, opacity: ".42" });
 
     g.append(bloom, body, inner, limbal);
     eyesG.appendChild(g);
-    return { side, sign, g, clipPath, bloom, body, limbal, rim, pupil, refl, cat1, cat1b, cat2, star, sheen, topShade, ring1, ring2, sparks, bok };
+    return { side, sign, g, clipPath, bloom, body, limbal, rim, pupil, refl, warmRefl, cat1, cat1b, cat2, cat3, star, sheen, topShade, ring1, ring2, sparks, bok };
   }
 
   const eyeL = buildEye("L"), eyeR = buildEye("R");
 
   // animation state
-  let cur: Preset = JSON.parse(JSON.stringify(PRESETS.neutral));
+  const cur: Preset = JSON.parse(JSON.stringify(PRESETS.neutral));
   let tgt: Preset = PRESETS.neutral;
   const curGaze = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
   let mouseActive = false, mouseT = 0;
@@ -204,7 +207,7 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     E.clipPath.setAttribute("d", d);
     E.limbal.setAttribute("d", d);
     E.bloom.setAttribute("d", d);
-    E.bloom.setAttribute("opacity", String(clamp(0.35 * glow, 0, 0.9)));
+    E.bloom.setAttribute("opacity", String(clamp(0.28 * glow, 0, 0.72)));
 
     const shadeY = (topH / (HALFH * 0.94)).toFixed(3);
     E.topShade.setAttribute("transform", `scale(1 ${shadeY})`);
@@ -217,17 +220,19 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     const px = gx + conv, py = gy;
     E.pupil.setAttribute("transform", `translate(${px} ${py}) scale(${cur.pupil})`);
     E.refl.setAttribute("transform", `translate(${px} ${py}) scale(${cur.pupil})`);
+    E.warmRefl.setAttribute("transform", `translate(${px * 0.78} ${py * 0.78}) scale(${cur.pupil})`);
     E.rim.setAttribute("transform", `translate(${gx * 0.5} ${gy * 0.5})`);
     E.ring1.setAttribute("transform", `translate(${gx * 0.15} ${gy * 0.15})`);
     E.ring2.setAttribute("transform", `translate(${gx * 0.25} ${gy * 0.25})`);
-    const c1x = -E.sign * PR * 0.32, c1y = PY - PR * 0.42, c1rot = E.sign * 14;
+    const c1x = -E.sign * PR * 0.36, c1y = PY - PR * 0.5, c1rot = E.sign * 13;
     E.cat1.setAttribute("transform", `translate(${px * 0.9} ${py * 0.9}) rotate(${c1rot} ${c1x} ${c1y})`);
     E.cat1b.setAttribute("transform", `translate(${px * 0.9} ${py * 0.9}) rotate(${c1rot} ${c1x} ${c1y})`);
     E.cat2.setAttribute("transform", `translate(${px * 0.86} ${py * 0.86})`);
+    E.cat3.setAttribute("transform", `translate(${px * 0.82} ${py * 0.82})`);
     E.sheen.setAttribute("transform", `translate(${gx * 0.1} ${gy * 0.1}) scale(1 ${shadeY})`);
-    const sx = -E.sign * HALFW * 0.34, sy = -HALFH * 0.4;
-    E.star.setAttribute("transform", `translate(${gx * 0.3} ${gy * 0.3}) rotate(${(t * 26) % 360} ${sx} ${sy})`);
-    E.star.setAttribute("opacity", String((0.35 + 0.5 * Math.abs(Math.sin(t * 1.3 + E.sign))) * clamp(b, 0, 1)));
+    const sx = -E.sign * HALFW * 0.36, sy = -HALFH * 0.38;
+    E.star.setAttribute("transform", `translate(${gx * 0.3} ${gy * 0.3}) rotate(${(t * 18) % 360} ${sx} ${sy})`);
+    E.star.setAttribute("opacity", String((0.22 + 0.42 * Math.abs(Math.sin(t * 1.1 + E.sign))) * clamp(b, 0, 1)));
 
     for (const s of E.sparks) {
       const p = s._p;
@@ -241,8 +246,8 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     E.bok.setAttribute("cx", String(Math.cos(t * bp.spd + bp.ph) * bp.rad * 0.6 + gx * 0.15));
     E.bok.setAttribute("cy", String(Math.sin(t * bp.spd + bp.ph) * bp.rrad * 0.6 + gy * 0.15));
 
-    E.rim.setAttribute("opacity", String(clamp(0.5 * glow, 0, 1)));
-    E.limbal.setAttribute("opacity", "0.55");
+    E.rim.setAttribute("opacity", String(clamp(0.48 * glow, 0, 1)));
+    E.limbal.setAttribute("opacity", "0.42");
   }
 
   let last = 0;

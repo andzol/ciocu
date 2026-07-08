@@ -26,12 +26,13 @@ export default function PresenceControl({
 }) {
   const [state, setState] = useState<UIState>("off");
   const [attending, setAttending] = useState(false);
-  const [debugOn, setDebugOn] = useState(false);
+  const [debugOn] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
+  );
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
 
   useEffect(() => {
-    setDebugOn(new URLSearchParams(window.location.search).has("debug"));
     return () => handleRef.current?.stop();
   }, []);
 

@@ -7,7 +7,10 @@ import { createEyeEngine, type EyeEngineHandle } from "@/lib/eyes/engine";
 export default function EyeStage({ onReady }: { onReady?: (handle: EyeEngineHandle) => void }) {
   const mount = useRef<HTMLDivElement>(null);
   const readyRef = useRef(onReady);
-  readyRef.current = onReady;
+
+  useEffect(() => {
+    readyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     const node = mount.current;

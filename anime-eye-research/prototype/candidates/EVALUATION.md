@@ -13,6 +13,7 @@ further. Each version below is a saved, runnable snapshot.
 | v3 | `v3-liquid-eye.html` | **Big dark liquid orb + bright catchlight** | 9/10 | strong |
 | **v4** | **`v4-liquid-eye-polished.html`** | v3 + wet in-eye reflection + lifted blush | **9.5/10** | ✅ **WINNER → `../index.html`** |
 | v5 | `v5-anime-blue-flat.html` | Realistic-anime style: flat cel blue iris on v4's rounded eye-white, skin ground, dark contour | — | explored; **v4 still preferred** |
+| **v6** | **`v6-plush-companion.html`** | Softer plush robot eye: wider/closer lenses, bigger trust-pupil, warm lower reflection, calmer sparkles | **9.7/10** | new cutest direction -> app engine |
 
 ## The reasoning (what each screenshot told me)
 
@@ -78,6 +79,19 @@ lid-based expressions.
 **Verdict: interesting, but v4 remains the preferred design.** v5 is more "anime character eye";
 v4 is the warmer, cuter, more universally-relatable companion look and stays the winner
 (`../index.html`). Keeping v5 as a candidate for the alternate art direction.
+
+## v6 - plush companion eye (new cutest direction)
+
+`v6-plush-companion.html` keeps v4's best discovery - a big dark liquid center with a living
+catchlight - but makes the face gentler. The eye pair is wider, slightly lower, and closer together.
+The pupil is larger at rest, the surprise state no longer pinholes into fear, and the glow palette is
+more mint/soft-teal than scanner-cyan. A tiny warm reflection sits low in the pupil so the dark orb
+feels less cold, while the sparkle count is reduced so the neutral state stays projectable.
+
+**Verdict: v6 is cuter than v4 for the actual desktop bot.** It is still clearly a robot screen face,
+not a human anime face, and it borrows Baymax's calm minimalism only as a principle. The live app
+renderer has been updated to use this v6 construction in `ciocu/lib/eyes/engine.ts` and the matching
+expression values in `ciocu/lib/eyes/presets.ts`.
 
 ---
 To compare any two versions, open the two `.html` files side by side in a browser.
