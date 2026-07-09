@@ -21,7 +21,7 @@ const el = (n: string, a: Record<string, string | number> = {}): SVGElement => {
 const CX = 800, CY = 448, GAP = 178;
 const HALFW = 166, HALFH = 214, K = 0.76;
 const MAXGX = 44, MAXGY = 34;
-const PR = HALFW * 0.58, PY = HALFH * 0.12;
+const PR = HALFW * 0.64, PY = HALFH * 0.12;
 
 const DEFS = `
   <radialGradient id="bg" cx="50%" cy="42%" r="75%">
@@ -92,7 +92,9 @@ function eyePath(w: number, topH: number, botH: number): string {
 
 export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", "0 0 1600 900");
+  // Tight viewBox cropped around the eyes' bounding box (+~150u of glow breathing room) so the
+  // eyes fill the frame instead of floating in a letterboxed 16:9 field. Centered on (800,448).
+  svg.setAttribute("viewBox", "306 84 988 728");
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("aria-label", "Ciocu's eyes");
   svg.setAttribute("role", "img");
