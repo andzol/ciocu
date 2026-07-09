@@ -179,12 +179,13 @@ export default function Home() {
         persist("ciocu", reply);
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
-        // remember this exchange in the background: extract durable memories -> embed -> store
+        // remember this exchange in the background: extract durable memories -> embed -> store.
+        // Only the latest turn (not the whole history) so we don't re-extract past turns.
         void rememberExchange(
-          [...mapped, { role: "assistant", content: reply }] as {
-            role: "user" | "assistant";
-            content: string;
-          }[],
+          [
+            { role: "user", content: text },
+            { role: "assistant", content: reply },
+          ],
           moodRef.current,
           threadIdRef.current ?? "",
         );

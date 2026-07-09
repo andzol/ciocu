@@ -33,8 +33,24 @@ export async function recall(
 
   scored.sort((x, y) => y.score - x.score);
   const top = scored.filter((s) => s.sim > MIN_SIM).slice(0, k);
-  await reinforceBlocks(top.map((s) => s.b.id), now); // recalling strengthens the memory
-  return top.map((s) => s.b);
+  if (top.length === 0) return [];
+
+  // Pull the whole thread: bring in other blocks from the same topic(s), so a recurring theme
+  // returns with its full arc, not just the single closest sentence.
+  const topicIds = new Set(top.map((s) => s.b.topicId).filter(Boolean) as string[]);
+  const chosen = new Map<string, StoredBlock>();
+  for (const s of top) chosen.set(s.b.id, s.b); // primary matches first
+  const siblings = blocks
+    .filter((b) => b.topicId && topicIds.has(b.topicId) && !chosen.has(b.id))
+    .sort((a, b) => b.salience - a.salience || b.eventTime - a.eventTime);
+  for (const b of siblings) {
+    if (chosen.size >= 6) break;
+    chosen.set(b.id, b);
+  }
+
+  const result = [...chosen.values()];
+  await reinforceBlocks(result.map((b) => b.id), now); // recalling strengthens the memory
+  return result;
 }
 
 /** Format recalled blocks as a context note for the model — used naturally, never recited. */
