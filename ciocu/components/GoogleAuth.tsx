@@ -4,11 +4,32 @@ import { useEffect, useRef, useState } from "react";
 import { setProfile, useGoogleUser } from "@/lib/auth/session";
 
 // ── Google Identity Services (GIS) sign-in ──────────────────────────────────────
-// Signed out: renders Google's "Sign in with Google" button. On sign-in, the token is
-// verified server-side (/api/auth) before we trust it — then the verified profile (name /
-// email / picture) is stored in the shared session and the button becomes an account chip.
+// Signed out: renders Google's "Sign in with Google" button. On sign-in we show the account chip
+// immediately (decoding the token client-side for DISPLAY), and in the background POST the token
+// to /api/auth to open the verified server session (the httpOnly cookie that gates paid features).
+// Display is best-effort; entitlement stays server-verified — so the UI never gets stuck on a
+// network hiccup.
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+
+interface DisplayProfile {
+  name: string;
+  email: string;
+  picture: string;
+}
+
+/** Decode a JWT payload (base64url) for display only — server verifies for real in /api/auth. */
+function decodeJwt(token: string): DisplayProfile | null {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const data = JSON.parse(decodeURIComponent(escape(json)));
+    if (!data.email) return null;
+    return { name: data.name, email: data.email, picture: data.picture };
+  } catch {
+    return null;
+  }
+}
 
 interface CredentialResponse {
   credential: string;
@@ -46,20 +67,23 @@ export default function GoogleAuth() {
       id.initialize({
         client_id: CLIENT_ID,
         auto_select: false,
-        callback: async (res) => {
-          // Verify server-side; only a Google-signed token minted for us is trusted.
-          try {
-            const r = await fetch("/api/auth", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential: res.credential }),
+        callback: (res) => {
+          // 1) Show the chip right away from the client-decoded token (display only).
+          const local = decodeJwt(res.credential);
+          if (local) setProfile(local);
+          // 2) In the background, open the verified server session and refine with its data.
+          fetch("/api/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential: res.credential }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((p) => {
+              if (p?.email) setProfile(p);
+            })
+            .catch(() => {
+              /* session cookie not set; chip still shows, paid gating just won't unlock */
             });
-            if (!r.ok) return;
-            const p = await r.json();
-            if (p?.email) setProfile(p);
-          } catch {
-            /* network hiccup — user can retry the button */
-          }
         },
       });
       buttonHostRef.current.replaceChildren();
