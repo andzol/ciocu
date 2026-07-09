@@ -15,10 +15,12 @@ import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import { CIOCU_SYSTEM } from "@/lib/llm/persona";
 import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/lib/memory/store";
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
+import { createSonioxVoice } from "@/lib/voice/soniox";
+import { useGoogleUser } from "@/lib/auth/session";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
-import { recordChatMessage, recordTurn } from "@/lib/usage/ledger";
+import { recordChatMessage, recordTurn, recordVoiceSeconds } from "@/lib/usage/ledger";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -40,6 +42,7 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attending, setAttending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const user = useGoogleUser();
 
   const applyMessages = useCallback((next: ChatMessage[]) => {
     messagesRef.current = next;
@@ -210,11 +213,40 @@ export default function Home() {
   );
   sendRef.current = sendMessage;
 
-  // Voice input (Web Speech), created once, driven by attention below.
+  // Voice input, driven by attention below. Everyone gets free Web Speech; a signed-in paying
+  // user is transparently upgraded to Soniox (server-gated in /api/stt-token — see soniox.ts).
   useEffect(() => {
-    voiceRef.current = createVoice({ onFinal: (t) => sendRef.current(t) });
-    return () => voiceRef.current?.stop();
-  }, []);
+    let cancelled = false;
+    const web = createVoice({ onFinal: (t) => sendRef.current(t) });
+    voiceRef.current = web;
+    if (attendingRef.current && web.supported) web.start();
+
+    let soniox: VoiceHandle | null = null;
+    if (user) {
+      (async () => {
+        const s = await createSonioxVoice({
+          onFinal: (t) => sendRef.current(t),
+          onProcessedMs: (ms) => {
+            void recordVoiceSeconds(ms / 1000); // meter exactly the audio Soniox processed
+          },
+        });
+        if (cancelled || !s) {
+          s?.stop();
+          return; // not entitled (or setup failed) → stay on free Web Speech
+        }
+        soniox = s;
+        web.stop();
+        voiceRef.current = s;
+        if (attendingRef.current) s.start();
+      })();
+    }
+
+    return () => {
+      cancelled = true;
+      web.stop();
+      soniox?.stop();
+    };
+  }, [user]);
 
   // Eye contact drives presence AND gates voice: she only listens (mic) while she sees you.
   const handleAttention = useCallback((next: boolean) => {

@@ -113,8 +113,14 @@ Check: `19.99 − 1.50 − 8.50 = 9.99` ✓ and `99.99 − 5.50 − 44.50 = 49.9
 - [x] Build `lib/usage` credit ledger — `lib/usage/rates.ts` (rate card) + `lib/usage/ledger.ts`
   (IndexedDB `ciocu-usage`, monthly rollover, drain, `canUseVoice()` throttle, `useUsage()` hook).
   Text path is wired in `app/page.tsx` (`recordTurn` on send, `recordChatMessage` on reply) and
-  verified draining at the correct rates. **Still to wire:** `recordVoiceSeconds()` when Soniox
-  STT lands; `setTier()` driven by verified subscription status; a meter UI consuming `useUsage()`.
+  verified draining at the correct rates. Voice path wired: Soniox reports `total_audio_proc_ms`
+  → `recordVoiceSeconds()`. **Still to wire:** `setTier()` driven by verified subscription status.
+- [x] Soniox STT for paid users only — server-gated. `/api/stt-token` verifies the session cookie
+  (set by `/api/auth`, signed with `AUTH_SECRET`), checks an active Lemon Squeezy subscription
+  (`lib/billing/lemonsqueezy.ts`, needs `LEMONSQUEEZY_API_KEY`), then mints a single-use Soniox
+  temp key. Client `lib/voice/soniox.ts` streams mic PCM16 → `wss://stt-rt.soniox.com`; falls back
+  to free Web Speech if not entitled. Fails CLOSED (verified: no session→401, session+no sub→403).
+  **Env needed in Vercel:** `SONIOX_API_KEY`, `AUTH_SECRET`, `LEMONSQUEEZY_API_KEY`.
 - [ ] Server-authoritative enforcement + align period reset to the Lemon Squeezy renewal date
   (current reset is calendar-month, client-side — see the SCOPE note in `ledger.ts`).
 - [ ] Decide Basic-tier voice cap (if going with the text-first split in §7).

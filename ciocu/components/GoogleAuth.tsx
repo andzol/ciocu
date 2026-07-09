@@ -111,6 +111,7 @@ export default function GoogleAuth() {
 
   function signOut() {
     window.google?.accounts?.id?.disableAutoSelect();
+    void fetch("/api/auth", { method: "DELETE" }); // clear the server session cookie too
     setProfile(null);
     setMenuOpen(false);
   }
