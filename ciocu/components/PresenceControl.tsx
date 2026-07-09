@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Eye, EyeSlash } from "@phosphor-icons/react";
 import type { AttentionHandle } from "@/lib/attention/faceAttention";
 
@@ -12,22 +12,30 @@ interface DebugInfo {
   attending: boolean;
 }
 
+export interface PresenceHandle {
+  /** Start eye contact (camera). Safe to call from the first-visit onboarding. */
+  enable: () => void;
+}
+
+interface PresenceProps {
+  onAttention: (attending: boolean) => void;
+  onVoice: (level: number) => void;
+}
+
 /**
  * Opt-in "eye contact" control. Off by default — Ciocu never grabs the camera on load. When on,
  * the camera runs on-device (MediaPipe) and an honest live dot shows it's active. A status line
  * tells you whether she currently sees you. Add ?debug to the URL for the raw detection numbers.
+ * Exposes enable() via ref so the first-visit onboarding can turn it on.
  */
-export default function PresenceControl({
-  onAttention,
-  onVoice,
-}: {
-  onAttention: (attending: boolean) => void;
-  onVoice: (level: number) => void;
-}) {
+const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function PresenceControl(
+  { onAttention, onVoice },
+  ref,
+) {
   const [state, setState] = useState<UIState>("off");
   const [attending, setAttending] = useState(false);
-  const [debugOn] = useState(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
+  const [debugOn] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
   );
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
@@ -37,6 +45,7 @@ export default function PresenceControl({
   }, []);
 
   async function enable() {
+    if (state === "on" || state === "starting") return;
     setState("starting");
     try {
       const { startAttention } = await import("@/lib/attention/faceAttention");
@@ -72,6 +81,11 @@ export default function PresenceControl({
     if (state === "on" || state === "starting") disable();
     else enable();
   }
+
+  // stable enable() for the imperative handle (always calls the latest closure)
+  const enableRef = useRef(enable);
+  enableRef.current = enable;
+  useImperativeHandle(ref, () => ({ enable: () => enableRef.current() }), []);
 
   const active = state === "on";
   const label = active ? "Turn off eye contact" : "Let Ciocu see you";
@@ -116,4 +130,6 @@ export default function PresenceControl({
       </button>
     </div>
   );
-}
+});
+
+export default PresenceControl;

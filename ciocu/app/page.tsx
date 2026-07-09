@@ -5,7 +5,8 @@ import EyeStage from "@/components/EyeStage";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
-import PresenceControl from "@/components/PresenceControl";
+import PresenceControl, { type PresenceHandle } from "@/components/PresenceControl";
+import Onboarding from "@/components/Onboarding";
 import VersionBadge from "@/components/VersionBadge";
 import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
@@ -28,6 +29,7 @@ export default function Home() {
   const voiceRef = useRef<VoiceHandle | null>(null);
   const sendRef = useRef<(text: string) => void>(() => {});
   const moodRef = useRef<Mood>({ valence: BASELINE.valence, arousal: BASELINE.arousal, bond: 0 });
+  const presenceRef = useRef<PresenceHandle | null>(null);
 
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -212,7 +214,7 @@ export default function Home() {
           <Wordmark />
         </div>
         <div className="topbar-right">
-          <PresenceControl onAttention={handleAttention} onVoice={handleVoice} />
+          <PresenceControl ref={presenceRef} onAttention={handleAttention} onVoice={handleVoice} />
         </div>
       </header>
 
@@ -224,6 +226,7 @@ export default function Home() {
 
       <VersionBadge />
       <ChatDrawer messages={messages} onSend={sendMessage} />
+      <Onboarding onEnable={() => presenceRef.current?.enable()} />
     </main>
   );
 }
