@@ -22,6 +22,7 @@ import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
 import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier, useUsage } from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
+import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -246,9 +247,11 @@ export default function Home() {
     };
     void sync();
     window.addEventListener("focus", sync);
+    window.addEventListener(SUB_UPDATED_EVENT, sync); // fires right after a successful checkout
     return () => {
       cancelled = true;
       window.removeEventListener("focus", sync);
+      window.removeEventListener(SUB_UPDATED_EVENT, sync);
     };
   }, [user]);
 

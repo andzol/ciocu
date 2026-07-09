@@ -61,10 +61,11 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
       setHint("Sign in with Google to subscribe.");
       return;
     }
-    if (!openCheckout(user.email)) {
+    if (!CHECKOUT_URL) {
       setHint("Checkout isn't configured yet.");
       return;
     }
+    openCheckout(user.email);
     setOpen(false);
   }
 
