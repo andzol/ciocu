@@ -8,23 +8,27 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE
 export interface VerifiedGoogleUser {
   sub: string;
   email: string;
-  name: string;
-  picture: string;
 }
 
-export async function verifyGoogleCredential(credential: string): Promise<VerifiedGoogleUser | null> {
-  if (!CLIENT_ID || !credential) return null;
+/**
+ * Verify a Google OAuth **access token** (from the client's token flow): confirm Google issued it
+ * for OUR client and it carries a verified email. tokeninfo returns azp/aud (the client id),
+ * scope, email and email_verified for a valid token.
+ */
+export async function verifyGoogleAccessToken(accessToken: string): Promise<VerifiedGoogleUser | null> {
+  if (!CLIENT_ID || !accessToken) return null;
   try {
     const res = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
       { cache: "no-store" },
     );
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.aud !== CLIENT_ID) return null;
+    // The token must have been minted for THIS app (azp for user tokens; aud as a fallback).
+    if (data.azp !== CLIENT_ID && data.aud !== CLIENT_ID) return null;
     const emailVerified = data.email_verified === true || data.email_verified === "true";
     if (!emailVerified || !data.email) return null;
-    return { sub: data.sub, email: data.email, name: data.name, picture: data.picture };
+    return { sub: data.sub, email: data.email };
   } catch {
     return null;
   }

@@ -33,8 +33,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   if (!open) return null;
 
   function signOut() {
-    window.google?.accounts?.id?.disableAutoSelect();
-    void fetch("/api/auth", { method: "DELETE" }); // clear the server session cookie too
+    void fetch("/api/auth", { method: "DELETE" }); // clear the server session cookie
     setProfile(null);
   }
 
