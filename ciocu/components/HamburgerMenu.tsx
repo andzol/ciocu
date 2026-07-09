@@ -10,6 +10,8 @@ import {
   Sparkle,
   Gift,
 } from "@phosphor-icons/react";
+import { useGoogleUser } from "@/lib/auth/session";
+import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
 
 interface Item {
   id: string;
@@ -17,17 +19,17 @@ interface Item {
   icon: React.ReactNode;
 }
 
-// M1: menu items are present but inert (wired to real actions in later milestones).
+// M1: these remaining menu items are present but inert (wired to real actions in later milestones).
 const ITEMS: Item[] = [
-  { id: "settings", label: "Settings", icon: <GearSix size={20} weight="regular" /> },
   { id: "download", label: "Download memory", icon: <DownloadSimple size={20} weight="regular" /> },
   { id: "upload", label: "Upload memory", icon: <UploadSimple size={20} weight="regular" /> },
-  { id: "plan", label: "Plan", icon: <Sparkle size={20} weight="regular" /> },
   { id: "gift", label: "Gift Ciocu", icon: <Gift size={20} weight="regular" /> },
 ];
 
-export default function HamburgerMenu() {
+export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [open, setOpen] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const user = useGoogleUser();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -48,6 +50,29 @@ export default function HamburgerMenu() {
     };
   }, [open]);
 
+  // Reset any transient hint whenever the menu closes.
+  useEffect(() => {
+    if (!open) setHint(null);
+  }, [open]);
+
+  function handleSubscribe() {
+    // Paying requires an identity, so we can attach the payment to a real, verified email.
+    if (!user) {
+      setHint("Sign in with Google first (top left) to subscribe.");
+      return;
+    }
+    if (!openCheckout(user.email)) {
+      setHint("Checkout isn't configured yet.");
+      return;
+    }
+    setOpen(false);
+  }
+
+  function handleSettings() {
+    setOpen(false);
+    onOpenSettings();
+  }
+
   return (
     <div className="menu-root">
       <button
@@ -63,12 +88,30 @@ export default function HamburgerMenu() {
 
       {open && (
         <div ref={panelRef} className="menu-panel" role="menu">
+          {/* Settings & Usage — live. */}
+          <button type="button" role="menuitem" className="menu-item" onClick={handleSettings}>
+            <span className="menu-item-icon">
+              <GearSix size={20} weight="regular" />
+            </span>
+            <span>Settings &amp; usage</span>
+          </button>
+
+          {/* Subscribe — gated behind sign-in. */}
+          <button type="button" role="menuitem" className="menu-item" onClick={handleSubscribe}>
+            <span className="menu-item-icon">
+              <Sparkle size={20} weight="regular" />
+            </span>
+            <span>{user ? "Subscribe" : "Subscribe — sign in first"}</span>
+          </button>
+
           {ITEMS.map((item) => (
             <button key={item.id} type="button" role="menuitem" className="menu-item">
               <span className="menu-item-icon">{item.icon}</span>
               <span>{item.label}</span>
             </button>
           ))}
+
+          {hint && <p className="menu-hint">{hint}</p>}
         </div>
       )}
     </div>

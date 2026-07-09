@@ -23,6 +23,7 @@
   --z-caption: 15;
   --z-drawer: 40;
   --z-menu: 50;
+  --z-modal: 60;
 
   color-scheme: dark;
 }
@@ -79,6 +80,9 @@ body {
 }
 .topbar-left {
   justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .topbar-center {
   justify-self: center;
@@ -282,6 +286,273 @@ body {
 .menu-item-icon {
   display: inline-flex;
   color: var(--cyan-soft);
+}
+.menu-hint {
+  margin: 4px 6px 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+/* ── Settings modal ───────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(3, 5, 8, 0.62);
+  backdrop-filter: blur(6px);
+  animation: modal-fade 160ms var(--ease-out);
+}
+@keyframes modal-fade {
+  from { opacity: 0; }
+}
+.modal-panel {
+  width: min(440px, 100%);
+  max-height: min(86vh, 680px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  animation: modal-rise 200ms var(--ease-out) backwards;
+}
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.modal-body {
+  padding: 8px 20px 20px;
+}
+
+.settings-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section:last-child {
+  border-bottom: 0;
+}
+.settings-heading {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.settings-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-tier {
+  font-size: 13px;
+  color: var(--cyan);
+}
+.settings-muted {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+.settings-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-account .account-meta {
+  flex: 1 1 auto;
+}
+.settings-usage-line {
+  margin: 12px 0 2px;
+  font-size: 14px;
+  color: var(--text);
+}
+.settings-usage-line strong {
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+.settings-usage-approx {
+  margin-top: 2px;
+}
+.settings-warn {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #ffcf70;
+}
+
+/* energy meter */
+.meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cyan-soft), var(--cyan));
+  box-shadow: 0 0 12px rgba(55, 230, 255, 0.5);
+  transition: width 0.4s var(--ease-out);
+}
+.meter--low .meter-fill {
+  background: linear-gradient(90deg, #ffb347, #ff8c42);
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.5);
+}
+
+/* buttons */
+.btn-primary {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cyan);
+  color: #04252c;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s var(--ease-out), transform 0.1s var(--ease-out);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border-cyan);
+}
+
+/* ── Google sign-in / account chip ────────────────────────────────────────────── */
+.google-auth-button {
+  display: inline-flex;
+  align-items: center;
+  /* GIS renders its own iframe/button here; keep the row height steady */
+  min-height: 32px;
+}
+
+.account-chip-root {
+  position: relative;
+}
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+.account-chip:hover {
+  border-color: var(--border-cyan);
+  background: var(--surface-2);
+}
+.account-chip:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+.account-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-cyan);
+}
+.account-avatar--lg {
+  width: 40px;
+  height: 40px;
+}
+
+.account-menu {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  min-width: 240px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  z-index: var(--z-menu);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: menu-in 180ms var(--ease-out) backwards;
+}
+.account-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.account-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.account-meta-name {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-meta-email {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Caption band (Ciocu's voice, under the eyes) ─────────────────────────────── */

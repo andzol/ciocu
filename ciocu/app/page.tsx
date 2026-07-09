@@ -5,6 +5,8 @@ import EyeStage from "@/components/EyeStage";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
+import GoogleAuth from "@/components/GoogleAuth";
+import SettingsPanel from "@/components/SettingsPanel";
 import PresenceControl, { type PresenceHandle } from "@/components/PresenceControl";
 import Onboarding from "@/components/Onboarding";
 import VersionBadge from "@/components/VersionBadge";
@@ -16,6 +18,7 @@ import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
+import { recordChatMessage, recordTurn } from "@/lib/usage/ledger";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -36,6 +39,7 @@ export default function Home() {
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attending, setAttending] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const applyMessages = useCallback((next: ChatMessage[]) => {
     messagesRef.current = next;
@@ -125,6 +129,8 @@ export default function Home() {
       applyMessages(history);
       persist("user", text);
       engineRef.current?.setState("thinking");
+      // meter the background overhead this turn incurs (mood read + memory reflect)
+      void recordTurn();
 
       const mapped = history.slice(-24).map((m) => ({
         role: (m.role === "ciocu" ? "assistant" : "user") as LLMRole,
@@ -177,6 +183,7 @@ export default function Home() {
         applyMessages(finalized);
         setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
         persist("ciocu", reply);
+        void recordChatMessage(); // meter her reply against the monthly allowance
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
         // remember this exchange in the background: extract durable memories -> embed -> store.
@@ -230,7 +237,8 @@ export default function Home() {
     <main className="stage">
       <header className="topbar">
         <div className="topbar-left">
-          <HamburgerMenu />
+          <HamburgerMenu onOpenSettings={() => setSettingsOpen(true)} />
+          <GoogleAuth />
         </div>
         <div className="topbar-center">
           <Wordmark />
@@ -248,6 +256,7 @@ export default function Home() {
 
       <VersionBadge />
       <ChatDrawer messages={messages} onSend={sendMessage} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding onEnable={() => presenceRef.current?.enable()} />
     </main>
   );
