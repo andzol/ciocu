@@ -462,40 +462,10 @@ body {
 /* ── Google sign-in / account chip ────────────────────────────────────────────── */
 /* Google's real GIS button sits underneath (invisible) and catches the click; our own themed
    button is painted on top so it matches the dark UI (no white FedCM hover). */
-.google-auth {
-  position: relative;
-  display: inline-flex;
-}
-/* Our themed button defines the (compact) size; it's in-flow and visible. */
-.google-auth-fake {
+.google-auth-button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
-}
-/* Google's real button sits invisibly on top, clipped to our button's box, and catches the click. */
-.google-auth-gis {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  opacity: 0;
-  overflow: hidden;
-  border-radius: 12px;
-}
-.google-auth:hover .google-auth-fake {
-  border-color: var(--border-cyan);
-  background: var(--surface-2);
+  min-height: 40px; /* keep the topbar row height steady while GIS renders its iframe */
 }
 
 .account-chip-root {
