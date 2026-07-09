@@ -14,6 +14,8 @@ import { CIOCU_SYSTEM } from "@/lib/llm/persona";
 import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/lib/memory/store";
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
+import { formatMemories, recall } from "@/lib/memory/recall";
+import { rememberExchange } from "@/lib/memory/reflect";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -128,13 +130,23 @@ export default function Home() {
         role: (m.role === "ciocu" ? "assistant" : "user") as LLMRole,
         content: m.text,
       }));
-      const llmMessages: { role: LLMRole; content: string }[] = [
-        { role: "system", content: CIOCU_SYSTEM },
-        ...mapped,
-      ];
 
       // she feels how you feel, in parallel with composing her reply
       readMood(mapped as { role: "user" | "assistant"; content: string }[]);
+
+      // recall what she remembers about them that's relevant to this message
+      let memoryContext = "";
+      try {
+        memoryContext = formatMemories(await recall(text, moodRef.current));
+      } catch {
+        /* recall is best-effort */
+      }
+
+      const llmMessages: { role: LLMRole; content: string }[] = [
+        { role: "system", content: CIOCU_SYSTEM },
+        ...(memoryContext ? [{ role: "system" as LLMRole, content: memoryContext }] : []),
+        ...mapped,
+      ];
 
       // placeholder bubble that fills in as tokens stream into the drawer
       applyMessages([...history, { role: "ciocu", text: "" }]);
@@ -167,6 +179,15 @@ export default function Home() {
         persist("ciocu", reply);
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
+        // remember this exchange in the background: extract durable memories -> embed -> store
+        void rememberExchange(
+          [...mapped, { role: "assistant", content: reply }] as {
+            role: "user" | "assistant";
+            content: string;
+          }[],
+          moodRef.current,
+          threadIdRef.current ?? "",
+        );
       } catch {
         const errored = [...messagesRef.current];
         errored[errored.length - 1] = { role: "ciocu", text: ERROR_LINE };

@@ -21,6 +21,26 @@ export interface StoredThread {
   title?: string;
 }
 
+// A memory block — derived from the raw log, carrying feeling + time (see ciocu-memory-emotion).
+// Rebuildable, so it's always safe to prune/merge these; the raw messages are the truth.
+export type BlockKind = "episodic" | "semantic" | "affective";
+export interface StoredBlock {
+  id: string;
+  threadId: string;
+  content: string;
+  kind: BlockKind;
+  embedding: Float32Array; // MiniLM, L2-normalized (384-dim)
+  valence: number; // how it felt when formed
+  arousal: number;
+  salience: number; // strength = f(|arousal|, reinforcement, recency)
+  createdAt: number;
+  eventTime: number;
+  lastRecalledAt: number;
+  reinforced: number;
+  status: "active" | "archived" | "superseded";
+  topicId?: string; // populated in M4c
+}
+
 interface CiocuDB extends DBSchema {
   messages: {
     key: string;
@@ -32,19 +52,31 @@ interface CiocuDB extends DBSchema {
     value: StoredThread;
     indexes: { "by-lastAt": number };
   };
+  blocks: {
+    key: string;
+    value: StoredBlock;
+    indexes: { "by-status": string; "by-thread": string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<CiocuDB>> | null = null;
 
 function db() {
   if (!dbPromise) {
-    dbPromise = openDB<CiocuDB>("ciocu", 1, {
-      upgrade(d) {
-        const m = d.createObjectStore("messages", { keyPath: "id" });
-        m.createIndex("by-thread", "threadId");
-        m.createIndex("by-ts", "ts");
-        const t = d.createObjectStore("threads", { keyPath: "id" });
-        t.createIndex("by-lastAt", "lastAt");
+    dbPromise = openDB<CiocuDB>("ciocu", 2, {
+      upgrade(d, oldVersion) {
+        if (oldVersion < 1) {
+          const m = d.createObjectStore("messages", { keyPath: "id" });
+          m.createIndex("by-thread", "threadId");
+          m.createIndex("by-ts", "ts");
+          const t = d.createObjectStore("threads", { keyPath: "id" });
+          t.createIndex("by-lastAt", "lastAt");
+        }
+        if (oldVersion < 2) {
+          const b = d.createObjectStore("blocks", { keyPath: "id" });
+          b.createIndex("by-status", "status");
+          b.createIndex("by-thread", "threadId");
+        }
       },
     });
   }
@@ -84,11 +116,48 @@ export async function getLatestThreadId(): Promise<string | null> {
   return threads.length ? threads[threads.length - 1].id : null;
 }
 
+// ── Memory blocks ──────────────────────────────────────────────────────────────
+export async function putBlock(block: StoredBlock): Promise<void> {
+  const d = await db();
+  await d.put("blocks", block);
+}
+
+export async function getActiveBlocks(): Promise<StoredBlock[]> {
+  const d = await db();
+  return d.getAllFromIndex("blocks", "by-status", "active");
+}
+
+export async function countActiveBlocks(): Promise<number> {
+  const d = await db();
+  return d.countFromIndex("blocks", "by-status", "active");
+}
+
+/** Bump strength + recency on the blocks that were just recalled (spaced-repetition style). */
+export async function reinforceBlocks(ids: string[], now: number): Promise<void> {
+  if (ids.length === 0) return;
+  const d = await db();
+  const tx = d.transaction("blocks", "readwrite");
+  for (const id of ids) {
+    const b = await tx.store.get(id);
+    if (!b) continue;
+    b.reinforced += 1;
+    b.lastRecalledAt = now;
+    b.salience = Math.min(1, b.salience + 0.03);
+    await tx.store.put(b);
+  }
+  await tx.done;
+}
+
 /** Full export of the raw log — the basis for the future "download memory" feature (M5). */
-export async function exportAll(): Promise<{ threads: StoredThread[]; messages: StoredMessage[] }> {
+export async function exportAll(): Promise<{
+  threads: StoredThread[];
+  messages: StoredMessage[];
+  blocks: StoredBlock[];
+}> {
   const d = await db();
   return {
     threads: await d.getAll("threads"),
     messages: await d.getAll("messages"),
+    blocks: await d.getAll("blocks"),
   };
 }
