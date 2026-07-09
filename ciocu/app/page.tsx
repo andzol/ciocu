@@ -20,11 +20,13 @@ import { useGoogleUser } from "@/lib/auth/session";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
-import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier } from "@/lib/usage/ledger";
+import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier, useUsage } from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
+const FREE_LIMIT_LINE =
+  "That's the last of our free messages. Subscribe and I'll keep going — and start remembering you.";
 
 type LLMRole = "system" | "user" | "assistant";
 
@@ -38,6 +40,9 @@ export default function Home() {
   const sendRef = useRef<(text: string) => void>(() => {});
   const moodRef = useRef<Mood>({ valence: BASELINE.valence, arousal: BASELINE.arousal, bond: 0 });
   const presenceRef = useRef<PresenceHandle | null>(null);
+  const usage = useUsage();
+  const usageRef = useRef(usage);
+  usageRef.current = usage;
 
   const [caption, setCaption] = useState(GREETING);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -127,6 +132,13 @@ export default function Home() {
     async (raw: string) => {
       const text = raw.trim();
       if (!text || generatingRef.current) return;
+
+      // Free plan: cap at FREE_MESSAGE_LIMIT exchanges, then nudge to subscribe.
+      if (usageRef.current?.messageBlocked) {
+        setCaption(FREE_LIMIT_LINE);
+        setSettingsOpen(true);
+        return;
+      }
       generatingRef.current = true;
 
       const history: ChatMessage[] = [...messagesRef.current, { role: "user", text }];

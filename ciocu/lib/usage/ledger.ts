@@ -16,6 +16,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { useSyncExternalStore } from "react";
 import {
+  FREE_MESSAGE_LIMIT,
   TIER_ALLOWANCE,
   VOICE_THROTTLE_FLOOR,
   chatCredits,
@@ -43,6 +44,8 @@ export interface UsageSnapshot {
   remaining: number; // credits left (never negative)
   fractionUsed: number; // 0..1, for a meter
   voiceThrottled: boolean; // true → route voice to text-only
+  freeMessagesLeft: number | null; // free tier: messages remaining this period; null when paid
+  messageBlocked: boolean; // free tier hit its message cap → prompt to subscribe
   periodStart: number;
   raw: { sttSeconds: number; chatMessages: number; turns: number };
 }
@@ -101,13 +104,16 @@ function snapshotOf(rec: UsageRecord): UsageSnapshot {
   const allowance = TIER_ALLOWANCE[rec.tier];
   const usedRounded = Math.round(rec.creditsUsed * 10) / 10;
   const remaining = Math.max(0, allowance - rec.creditsUsed);
+  const isFree = rec.tier === "none";
   return {
     tier: rec.tier,
     allowance,
     used: usedRounded,
     remaining: Math.round(remaining * 10) / 10,
     fractionUsed: allowance > 0 ? Math.min(1, rec.creditsUsed / allowance) : 1,
-    voiceThrottled: rec.tier === "none" || remaining <= VOICE_THROTTLE_FLOOR,
+    voiceThrottled: isFree || remaining <= VOICE_THROTTLE_FLOOR,
+    freeMessagesLeft: isFree ? Math.max(0, FREE_MESSAGE_LIMIT - rec.chatMessages) : null,
+    messageBlocked: isFree && rec.chatMessages >= FREE_MESSAGE_LIMIT,
     periodStart: rec.periodStart,
     raw: { sttSeconds: rec.sttSeconds, chatMessages: rec.chatMessages, turns: rec.turns },
   };

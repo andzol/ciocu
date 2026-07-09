@@ -27,6 +27,10 @@ export const TIER_ALLOWANCE: Record<Tier, number> = {
 // cheap text path carry the rest of the month — she throttles, she never goes silent.
 export const VOICE_THROTTLE_FLOOR = 10; // credits (~20 min of voice held in reserve)
 
+// Free (unsubscribed) users get a taste, then must subscribe. Counts Ciocu's replies (exchanges)
+// and resets with the monthly period. Paid tiers are not message-capped (text is ~free).
+export const FREE_MESSAGE_LIMIT = 10;
+
 // ── Converters ──────────────────────────────────────────────────────────────────
 /** Credits for a span of *active, streamed* speech-to-text (not wall-clock time). */
 export function voiceCredits(seconds: number): number {

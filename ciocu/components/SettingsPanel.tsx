@@ -4,7 +4,11 @@ import { useEffect } from "react";
 import { X, SignOut } from "@phosphor-icons/react";
 import { setProfile, useGoogleUser } from "@/lib/auth/session";
 import { useUsage } from "@/lib/usage/ledger";
-import { CREDITS_PER_CHAT_MESSAGE, CREDITS_PER_VOICE_MINUTE } from "@/lib/usage/rates";
+import {
+  CREDITS_PER_CHAT_MESSAGE,
+  CREDITS_PER_VOICE_MINUTE,
+  FREE_MESSAGE_LIMIT,
+} from "@/lib/usage/rates";
 import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
 
 const TIER_LABEL: Record<string, string> = {
@@ -92,10 +96,16 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             {!usage ? (
               <p className="settings-muted">Loading…</p>
             ) : usage.tier === "none" ? (
-              <p className="settings-muted">
-                You&rsquo;re on the free plan — unlimited text with Ciocu. Subscribe to unlock
-                real-time voice and a monthly energy allowance.
-              </p>
+              <>
+                <p className="settings-usage-line">
+                  <strong>{usage.freeMessagesLeft ?? 0}</strong> of {FREE_MESSAGE_LIMIT} free messages
+                  left
+                </p>
+                <p className="settings-muted settings-usage-approx">
+                  Subscribe to unlock real-time voice, a monthly energy allowance, and Ciocu
+                  remembering you.
+                </p>
+              </>
             ) : (
               <>
                 <div
