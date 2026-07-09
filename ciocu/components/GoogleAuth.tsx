@@ -107,6 +107,7 @@ export default function GoogleAuth() {
         size: "large",
         shape: "pill",
         text: "signin",
+        width: 220, // wider than our overlay; clipped to its box so it always catches the click
       });
     }
 

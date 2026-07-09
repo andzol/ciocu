@@ -466,18 +466,15 @@ body {
   position: relative;
   display: inline-flex;
 }
-.google-auth-gis {
-  opacity: 0; /* invisible but still receives the click */
-}
+/* Our themed button defines the (compact) size; it's in-flow and visible. */
 .google-auth-fake {
-  position: absolute;
-  inset: 0;
-  pointer-events: none; /* clicks pass through to the GIS button below */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 999px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
@@ -486,6 +483,15 @@ body {
   font-weight: 600;
   white-space: nowrap;
   transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+/* Google's real button sits invisibly on top, clipped to our button's box, and catches the click. */
+.google-auth-gis {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: 12px;
 }
 .google-auth:hover .google-auth-fake {
   border-color: var(--border-cyan);

@@ -58,7 +58,7 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
   function handleSubscribe() {
     // Paying requires an identity, so we can attach the payment to a real, verified email.
     if (!user) {
-      setHint("Sign in with Google first (top left) to subscribe.");
+      setHint("Sign in with Google to subscribe.");
       return;
     }
     if (!openCheckout(user.email)) {
@@ -101,7 +101,7 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
             <span className="menu-item-icon">
               <Sparkle size={20} weight="regular" />
             </span>
-            <span>{user ? "Subscribe" : "Subscribe — sign in first"}</span>
+            <span>Subscribe</span>
           </button>
 
           {ITEMS.map((item) => (
