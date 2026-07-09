@@ -16,6 +16,8 @@ function buildSystemPrompt(): string {
     "",
     `Your curiosity: ${P.curiosity}`,
     "",
+    `Presence vs momentum: ${P.presenceAndMomentum}`,
+    "",
     "How you speak:",
     ...P.voice.map((v) => `- ${v}`),
     "",
