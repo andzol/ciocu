@@ -20,7 +20,8 @@ import { useGoogleUser } from "@/lib/auth/session";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
-import { recordChatMessage, recordTurn, recordVoiceSeconds } from "@/lib/usage/ledger";
+import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier } from "@/lib/usage/ledger";
+import type { Tier } from "@/lib/usage/rates";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
 const ERROR_LINE = "I lost my thread for a second — say that again?";
@@ -212,6 +213,32 @@ export default function Home() {
     [applyMessages, persist, readMood],
   );
   sendRef.current = sendMessage;
+
+  // Reflect the real plan into the usage meter: read the tier from Lemon Squeezy (via the session)
+  // whenever the user signs in / the tab regains focus (so it updates after paying in the LS tab).
+  useEffect(() => {
+    if (!user) {
+      void setTier("none");
+      return;
+    }
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const res = await fetch("/api/subscription");
+        if (!res.ok) return;
+        const { tier } = (await res.json()) as { tier?: Tier };
+        if (!cancelled && tier) void setTier(tier);
+      } catch {
+        /* best-effort; meter falls back to its stored tier */
+      }
+    };
+    void sync();
+    window.addEventListener("focus", sync);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", sync);
+    };
+  }, [user]);
 
   // Voice input, driven by attention below. Everyone gets free Web Speech; a signed-in paying
   // user is transparently upgraded to Soniox (server-gated in /api/stt-token — see soniox.ts).

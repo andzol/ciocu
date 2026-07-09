@@ -51,9 +51,9 @@ interface UsageDB extends DBSchema {
   usage: { key: string; value: UsageRecord };
 }
 
-// TODO: driven by verified subscription status (LS webhook) once we have server-side identity.
-// Placeholder default so the meter is meaningful in development.
-const DEFAULT_TIER: Tier = "basic";
+// Free/unknown until /api/subscription reports a real tier (see page.tsx). setTier() then flips
+// it to basic/pro for paying users.
+const DEFAULT_TIER: Tier = "none";
 
 let dbPromise: Promise<IDBPDatabase<UsageDB>> | null = null;
 

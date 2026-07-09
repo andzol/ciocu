@@ -89,7 +89,14 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               <span className="settings-tier">{TIER_LABEL[usage?.tier ?? "none"]}</span>
             </div>
 
-            {usage ? (
+            {!usage ? (
+              <p className="settings-muted">Loading…</p>
+            ) : usage.tier === "none" ? (
+              <p className="settings-muted">
+                You&rsquo;re on the free plan — unlimited text with Ciocu. Subscribe to unlock
+                real-time voice and a monthly energy allowance.
+              </p>
+            ) : (
               <>
                 <div
                   className={`meter${usage.voiceThrottled ? " meter--low" : ""}`}
@@ -117,8 +124,6 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   </p>
                 )}
               </>
-            ) : (
-              <p className="settings-muted">Loading…</p>
             )}
 
             {/* Upgrade / subscribe */}
