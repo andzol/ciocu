@@ -14,8 +14,10 @@ import { mergeBundles, type RawBundle } from "@/lib/memory/mergeBundles";
 export const runtime = "nodejs";
 
 function getRedis(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Accept either the native Upstash names or the legacy Vercel KV names — Vercel's integration
+  // injects one or the other depending on how the store is created.
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   return new Redis({ url, token });
 }
