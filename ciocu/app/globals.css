@@ -675,6 +675,47 @@ body {
   transform: translateX(0);
 }
 
+/* ── Mobile: the chat is a bottom sheet, so Ciocu's eyes stay visible above it ─── */
+@media (max-width: 640px) {
+  .chat-drawer {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: min(56dvh, 540px);
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.55);
+    transform: translateY(100%);
+  }
+  .chat-drawer--open {
+    transform: translateY(0);
+  }
+  /* lift her eyes above the sheet while it's open, so she's still present as you type */
+  .eye-stage {
+    transition: transform 0.32s var(--ease-out);
+  }
+  .stage:has(.chat-drawer--open) .eye-stage {
+    transform: translateY(-15dvh);
+  }
+  /* open button: thumb-reachable bottom-right, hides with the sheet */
+  .chat-tab {
+    top: auto;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: 16px;
+    transform: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+  }
+  .chat-tab--hidden {
+    transform: translateY(24px);
+  }
+}
+
 .chat-header {
   display: flex;
   align-items: center;
