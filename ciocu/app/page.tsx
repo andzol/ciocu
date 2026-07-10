@@ -20,6 +20,7 @@ import { useGoogleUser } from "@/lib/auth/session";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
+import { pullFromServer, schedulePush } from "@/lib/memory/sync";
 import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier, useUsage } from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
@@ -111,6 +112,7 @@ export default function Home() {
     let cancelled = false;
     (async () => {
       try {
+        await pullFromServer(); // merge any synced memory before picking the latest thread
         const existing = await getLatestThreadId();
         const threadId = existing ?? newId();
         threadIdRef.current = threadId;
@@ -120,6 +122,7 @@ export default function Home() {
             applyMessages(prior.map((m) => ({ role: m.role, text: m.text })));
           }
         }
+        schedulePush(3000); // reconcile any local-only changes up to the server
       } catch {
         threadIdRef.current = newId();
       }
@@ -160,7 +163,13 @@ export default function Home() {
       // recall what she remembers about them that's relevant to this message
       let memoryContext = "";
       try {
-        memoryContext = formatMemories(await recall(text, moodRef.current));
+        // Don't let recall hold the reply hostage while the embed model cold-loads on a fresh
+        // device — cap it. Once the model is warm (next messages), recall completes instantly.
+        const recalled = await Promise.race([
+          recall(text, moodRef.current),
+          new Promise<never[]>((res) => setTimeout(() => res([]), 2500)),
+        ]);
+        memoryContext = formatMemories(recalled);
       } catch {
         /* recall is best-effort */
       }
@@ -213,6 +222,7 @@ export default function Home() {
           moodRef.current,
           threadIdRef.current ?? "",
         );
+        schedulePush(); // sync this exchange across devices (debounced; no-op if not eligible)
       } catch {
         const errored = [...messagesRef.current];
         errored[errored.length - 1] = { role: "ciocu", text: ERROR_LINE };
