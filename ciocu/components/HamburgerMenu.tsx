@@ -19,10 +19,8 @@ interface Item {
   icon: React.ReactNode;
 }
 
-// M1: these remaining menu items are present but inert (wired to real actions in later milestones).
+// Remaining inert item (wired in a later milestone).
 const ITEMS: Item[] = [
-  { id: "download", label: "Download memory", icon: <DownloadSimple size={20} weight="regular" /> },
-  { id: "upload", label: "Upload memory", icon: <UploadSimple size={20} weight="regular" /> },
   { id: "gift", label: "Gift Ciocu", icon: <Gift size={20} weight="regular" /> },
 ];
 
@@ -74,6 +72,47 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
     onOpenSettings();
   }
 
+  async function handleDownload() {
+    try {
+      const { serializeMemory } = await import("@/lib/memory/bundle");
+      const bundle = await serializeMemory();
+      const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ciocu-memory-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setOpen(false);
+    } catch {
+      setHint("Couldn't prepare your memory file.");
+    }
+  }
+
+  function handleUpload() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const { isBundle, mergeBundle } = await import("@/lib/memory/bundle");
+        const data = JSON.parse(await file.text());
+        if (!isBundle(data)) {
+          setHint("That doesn't look like a Ciocu memory file.");
+          return;
+        }
+        await mergeBundle(data);
+        // reload so the restored thread + memories hydrate cleanly
+        window.location.reload();
+      } catch {
+        setHint("Couldn't read that memory file.");
+      }
+    };
+    input.click();
+  }
+
   return (
     <div className="menu-root">
       <button
@@ -103,6 +142,20 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
               <Sparkle size={20} weight="regular" />
             </span>
             <span>Subscribe</span>
+          </button>
+
+          {/* Memory — yours to take anywhere. */}
+          <button type="button" role="menuitem" className="menu-item" onClick={handleDownload}>
+            <span className="menu-item-icon">
+              <DownloadSimple size={20} weight="regular" />
+            </span>
+            <span>Download memory</span>
+          </button>
+          <button type="button" role="menuitem" className="menu-item" onClick={handleUpload}>
+            <span className="menu-item-icon">
+              <UploadSimple size={20} weight="regular" />
+            </span>
+            <span>Upload memory</span>
           </button>
 
           {ITEMS.map((item) => (

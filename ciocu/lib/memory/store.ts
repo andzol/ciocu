@@ -148,7 +148,56 @@ export async function reinforceBlocks(ids: string[], now: number): Promise<void>
   await tx.done;
 }
 
-/** Full export of the raw log — the basis for the future "download memory" feature (M5). */
+/**
+ * Merge records from another device / a backup into this store. Union by id (append-only for
+ * messages); for blocks that already exist, keep the stronger/fresher version. Returns how many
+ * new records were added. This is the heart of both file-import and cross-device sync.
+ */
+export async function importRecords(data: {
+  threads?: StoredThread[];
+  messages?: StoredMessage[];
+  blocks?: StoredBlock[];
+}): Promise<{ threads: number; messages: number; blocks: number }> {
+  const d = await db();
+  const added = { threads: 0, messages: 0, blocks: 0 };
+  const tx = d.transaction(["threads", "messages", "blocks"], "readwrite");
+
+  for (const m of data.messages ?? []) {
+    if (!(await tx.objectStore("messages").get(m.id))) {
+      await tx.objectStore("messages").put(m);
+      added.messages++;
+    }
+  }
+  for (const t of data.threads ?? []) {
+    const existing = await tx.objectStore("threads").get(t.id);
+    if (!existing) {
+      await tx.objectStore("threads").put(t);
+      added.threads++;
+    } else if (t.lastAt > existing.lastAt) {
+      await tx.objectStore("threads").put({ ...existing, ...t });
+    }
+  }
+  for (const b of data.blocks ?? []) {
+    const existing = await tx.objectStore("blocks").get(b.id);
+    if (!existing) {
+      await tx.objectStore("blocks").put(b);
+      added.blocks++;
+    } else {
+      await tx.objectStore("blocks").put({
+        ...existing,
+        reinforced: Math.max(existing.reinforced, b.reinforced),
+        lastRecalledAt: Math.max(existing.lastRecalledAt, b.lastRecalledAt),
+        salience: Math.max(existing.salience, b.salience),
+        // a supersede/archive from anywhere wins (contradiction/pruning propagates)
+        status: b.status !== "active" ? b.status : existing.status,
+      });
+    }
+  }
+  await tx.done;
+  return added;
+}
+
+/** Full export of the raw log + derived blocks — powers file download and cross-device sync. */
 export async function exportAll(): Promise<{
   threads: StoredThread[];
   messages: StoredMessage[];
