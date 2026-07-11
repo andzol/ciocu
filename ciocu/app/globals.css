@@ -295,6 +295,27 @@ body:has(.marketing-shell) {
   display: inline-flex;
   color: var(--cyan-soft);
 }
+/* caret on the expandable Memory item */
+.menu-caret {
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 0.18s var(--ease-out);
+}
+.menu-caret--open {
+  transform: rotate(90deg);
+}
+/* nested download/upload under Memory */
+.menu-sub {
+  display: flex;
+  flex-direction: column;
+  margin-left: 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.menu-item--sub {
+  font-size: 14px;
+  padding: 9px 12px;
+}
 .menu-hint {
   margin: 4px 6px 2px;
   padding: 8px 10px;
@@ -381,6 +402,37 @@ body:has(.marketing-shell) {
   line-height: 1.4;
   margin: 0;
 }
+/* Knowledge-base toggles */
+.kb-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kb-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text);
+  transition: background 0.12s var(--ease-out);
+}
+.kb-item:hover {
+  background: var(--surface-2);
+}
+.kb-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .settings-account {
   display: flex;
   align-items: center;

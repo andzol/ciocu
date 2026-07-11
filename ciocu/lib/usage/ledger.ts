@@ -20,6 +20,7 @@ import {
   TIER_ALLOWANCE,
   VOICE_THROTTLE_FLOOR,
   chatCredits,
+  knowledgeCredits,
   turnOverheadCredits,
   voiceCredits,
   type Tier,
@@ -194,6 +195,13 @@ export async function recordTurn(count = 1): Promise<UsageSnapshot> {
       rec.turns += count;
       rec.creditsUsed += turnOverheadCredits(count);
     }
+  });
+}
+
+/** Record `count` Knowledge-base retrievals for a turn (one per active base). */
+export async function recordKnowledgeQueries(count: number): Promise<UsageSnapshot> {
+  return mutate((rec) => {
+    if (count > 0) rec.creditsUsed += knowledgeCredits(count);
   });
 }
 

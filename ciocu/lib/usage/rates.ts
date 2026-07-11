@@ -11,6 +11,9 @@ export const CREDIT_USD = 0.01; // 1 credit = one cent of vendor cost
 export const CREDITS_PER_VOICE_MINUTE = 0.5; // Soniox STT @ $0.30/hr  → $0.005/min
 export const CREDITS_PER_CHAT_MESSAGE = 0.1; // DeepSeek V4 Pro reply (~2k in + ~300 out)
 export const CREDITS_PER_TURN_OVERHEAD = 0.03; // mood read + memory reflect (V4 Flash, background)
+// Each active Knowledge base queried on a turn: a LlamaCloud retrieval + the extra chunks injected
+// into the reply. Scales with how many bases are enabled.
+export const CREDITS_PER_KNOWLEDGE_QUERY = 0.08;
 // Embeddings / recall / storage / eye rendering are on-device or idle → 0 credits.
 
 // ── Tiers ────────────────────────────────────────────────────────────────────────
@@ -48,4 +51,10 @@ export function chatCredits(messages: number): number {
 export function turnOverheadCredits(turns: number): number {
   if (!(turns > 0)) return 0;
   return turns * CREDITS_PER_TURN_OVERHEAD;
+}
+
+/** Credits for `n` Knowledge-base retrievals (one per active base per turn). */
+export function knowledgeCredits(queries: number): number {
+  if (!(queries > 0)) return 0;
+  return queries * CREDITS_PER_KNOWLEDGE_QUERY;
 }

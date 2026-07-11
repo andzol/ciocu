@@ -2,6 +2,7 @@
 // browser bundle. Streams the model's reply back as plain-text token deltas.
 
 import type { NextRequest } from "next/server";
+import { retrieve } from "@/lib/knowledge/llamacloud";
 
 export const runtime = "nodejs";
 
@@ -18,13 +19,34 @@ export async function POST(req: NextRequest) {
   if (!key) return new Response("Ciocu is missing her API key (OPENROUTER_API_KEY).", { status: 500 });
 
   let messages: ChatMessage[];
+  let knowledge: string[] = [];
   try {
-    ({ messages } = await req.json());
+    const body = await req.json();
+    messages = body.messages;
+    if (Array.isArray(body.knowledge)) {
+      knowledge = body.knowledge.filter((x: unknown) => typeof x === "string");
+    }
   } catch {
     return new Response("Bad request", { status: 400 });
   }
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response("No messages", { status: 400 });
+  }
+
+  // Knowledge: retrieve reference chunks from each enabled base and inject them into her context.
+  if (knowledge.length > 0) {
+    const query = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    if (query.trim()) {
+      const perBase = await Promise.all(knowledge.map((id) => retrieve(id, query, 4)));
+      const chunks = perBase.flat().slice(0, 8);
+      if (chunks.length > 0) {
+        const block =
+          "Reference knowledge you can draw on (use it naturally only when relevant; never cite it as a source or say 'according to'):\n" +
+          chunks.map((c) => `- ${c}`).join("\n");
+        // insert right after the persona system prompt (messages[0])
+        messages = [messages[0], { role: "system", content: block }, ...messages.slice(1)];
+      }
+    }
   }
 
   const upstream = await fetch(ENDPOINT, {

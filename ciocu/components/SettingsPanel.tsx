@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X, SignOut } from "@phosphor-icons/react";
 import { setProfile, useGoogleUser } from "@/lib/auth/session";
+import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
 import {
   CREDITS_PER_CHAT_MESSAGE,
@@ -20,6 +21,8 @@ const TIER_LABEL: Record<string, string> = {
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const user = useGoogleUser();
   const usage = useUsage();
+  const enabledKnowledge = useEnabledKnowledge();
+  const [bases, setBases] = useState<{ id: string; title: string }[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,6 +32,21 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Load the available knowledge bases (LlamaCloud pipelines) when the panel opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/knowledge")
+      .then((r) => (r.ok ? r.json() : { bases: [] }))
+      .then((d) => {
+        if (!cancelled) setBases(Array.isArray(d?.bases) ? d.bases : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -147,6 +165,34 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               >
                 {usage?.tier === "basic" ? "Upgrade plan" : "Subscribe"}
               </button>
+            )}
+          </section>
+
+          {/* ── Knowledge ───────────────────────────────────────────── */}
+          <section className="settings-section">
+            <h3 className="settings-heading">Knowledge</h3>
+            <p className="settings-muted settings-usage-approx">
+              Reference knowledge Ciocu can draw on. Each base you switch on is searched on every
+              message — so more active bases use more energy.
+            </p>
+            {bases.length === 0 ? (
+              <p className="settings-muted">No knowledge bases available yet.</p>
+            ) : (
+              <ul className="kb-list">
+                {bases.map((b) => (
+                  <li key={b.id}>
+                    <label className="kb-item">
+                      <input
+                        type="checkbox"
+                        className="kb-check"
+                        checked={enabledKnowledge.includes(b.id)}
+                        onChange={(e) => toggleKnowledge(b.id, e.target.checked)}
+                      />
+                      <span>{b.title}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </div>

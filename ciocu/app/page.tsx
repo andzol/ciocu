@@ -21,8 +21,16 @@ import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mo
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
 import { pullFromServer, schedulePush } from "@/lib/memory/sync";
-import { recordChatMessage, recordTurn, recordVoiceSeconds, setTier, useUsage } from "@/lib/usage/ledger";
+import {
+  recordChatMessage,
+  recordKnowledgeQueries,
+  recordTurn,
+  recordVoiceSeconds,
+  setTier,
+  useUsage,
+} from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
+import { getEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
 
 const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
@@ -184,11 +192,12 @@ export default function Home() {
       applyMessages([...history, { role: "ciocu", text: "" }]);
 
       let reply = "";
+      const activeKnowledge = getEnabledKnowledge();
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: llmMessages }),
+          body: JSON.stringify({ messages: llmMessages, knowledge: activeKnowledge }),
         });
         if (!res.ok || !res.body) throw new Error("bad response");
 
@@ -210,6 +219,7 @@ export default function Home() {
         setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
         persist("ciocu", reply);
         void recordChatMessage(); // meter her reply against the monthly allowance
+        if (activeKnowledge.length) void recordKnowledgeQueries(activeKnowledge.length);
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
         // remember this exchange in the background: extract durable memories -> embed -> store.
