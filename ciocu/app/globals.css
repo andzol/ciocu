@@ -42,6 +42,14 @@ body {
   overflow: hidden;
 }
 
+html:has(.marketing-shell),
+body:has(.marketing-shell) {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+  scroll-behavior: smooth;
+}
+
 /* ── Stage ──────────────────────────────────────────────────────────────────── */
 .stage {
   position: fixed;
