@@ -26,6 +26,11 @@ export const TIER_ALLOWANCE: Record<Tier, number> = {
   pro: 4400, // $99.99 / mo
 };
 
+// One-time "top-up" pack: buy more credits mid-period without changing plan. Sized to one basic
+// month (~$20 → 800 credits), so a maxed-out basic user who tops up drops from 100% back to ~50%.
+// Top-ups are counted per billing period (from LS orders) and don't roll over.
+export const CREDITS_PER_TOPUP = 800;
+
 // When remaining credits drop to/below this floor, stop spending on (expensive) voice and let the
 // cheap text path carry the rest of the month — she throttles, she never goes silent.
 export const VOICE_THROTTLE_FLOOR = 10; // credits (~20 min of voice held in reserve)

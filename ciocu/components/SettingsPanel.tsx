@@ -10,7 +10,7 @@ import {
   CREDITS_PER_VOICE_MINUTE,
   FREE_MESSAGE_LIMIT,
 } from "@/lib/usage/rates";
-import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
+import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
 
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
@@ -60,6 +60,10 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const voiceMinLeft = Math.round(remaining / CREDITS_PER_VOICE_MINUTE);
   const messagesLeft = Math.round(remaining / CREDITS_PER_CHAT_MESSAGE);
   const pctUsed = Math.round((usage?.fractionUsed ?? 0) * 100);
+  const renewsLabel = usage?.renewsAt
+    ? new Date(usage.renewsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : null;
+  const canTopUp = Boolean(user && TOPUP_URL && usage && usage.tier !== "none");
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -106,7 +110,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           {/* ── Usage ───────────────────────────────────────────────── */}
           <section className="settings-section">
             <div className="settings-heading-row">
-              <h3 className="settings-heading">Monthly energy</h3>
+              <h3 className="settings-heading">Monthly usage</h3>
               <span className="settings-tier">{TIER_LABEL[usage?.tier ?? "none"]}</span>
             </div>
 
@@ -125,46 +129,66 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </>
             ) : (
               <>
-                <div
-                  className={`meter${usage.voiceThrottled ? " meter--low" : ""}`}
-                  role="progressbar"
-                  aria-valuenow={pctUsed}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div className="meter-fill" style={{ width: `${pctUsed}%` }} />
+                {/* One bar, with the percentage read out beside it (monthly subscription). */}
+                <div className="usage-bar-row">
+                  <div
+                    className={`meter${usage.voiceThrottled ? " meter--low" : ""}`}
+                    role="progressbar"
+                    aria-valuenow={pctUsed}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="meter-fill" style={{ width: `${pctUsed}%` }} />
+                  </div>
+                  <span className="usage-pct">{pctUsed}% used</span>
                 </div>
 
-                <p className="settings-usage-line">
-                  <strong>{usage.remaining}</strong> of {usage.allowance} credits left
-                  <span className="settings-muted"> · {pctUsed}% used</span>
-                </p>
-
                 <p className="settings-muted settings-usage-approx">
-                  ≈ {voiceMinLeft} min of voice, or {messagesLeft.toLocaleString()} messages · resets
-                  monthly
+                  {renewsLabel ? `Renews ${renewsLabel}` : "Resets monthly"} ·{" "}
+                  {usage.remaining.toLocaleString()} of {usage.allowance.toLocaleString()} credits left
+                  {usage.topupCredits > 0 && ` · incl. ${usage.topupCredits.toLocaleString()} top-up`}
+                </p>
+                <p className="settings-muted settings-usage-approx">
+                  ≈ {voiceMinLeft} min of voice, or {messagesLeft.toLocaleString()} messages
                 </p>
 
                 {usage.voiceThrottled && (
                   <p className="settings-warn">
-                    Voice is paused to protect your balance — text still works.
+                    You&apos;re out of energy for this period — top up to keep going, or wait until it
+                    renews{renewsLabel ? ` on ${renewsLabel}` : ""}.
                   </p>
                 )}
               </>
             )}
 
-            {/* Upgrade / subscribe */}
-            {user && CHECKOUT_URL && usage?.tier !== "pro" && (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  openCheckout(user.email);
-                  onClose();
-                }}
-              >
-                {usage?.tier === "basic" ? "Upgrade plan" : "Subscribe"}
-              </button>
+            {/* Actions: top up this period's credits, and/or change plan. */}
+            {(canTopUp || (user && CHECKOUT_URL && usage?.tier !== "pro")) && (
+              <div className="settings-actions">
+                {canTopUp && (
+                  <button
+                    type="button"
+                    className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
+                    onClick={() => {
+                      openTopup(user!.email);
+                      onClose();
+                    }}
+                  >
+                    Top up
+                  </button>
+                )}
+                {user && CHECKOUT_URL && usage?.tier !== "pro" && (
+                  <button
+                    type="button"
+                    className={usage?.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
+                    onClick={() => {
+                      openCheckout(user.email);
+                      onClose();
+                    }}
+                  >
+                    {usage?.tier === "basic" ? "Upgrade plan" : "Subscribe"}
+                  </button>
+                )}
+              </div>
             )}
           </section>
 

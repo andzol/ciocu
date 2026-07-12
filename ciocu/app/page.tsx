@@ -26,6 +26,7 @@ import {
   recordKnowledgeQueries,
   recordTurn,
   recordVoiceSeconds,
+  setSubscription,
   setTier,
   useUsage,
 } from "@/lib/usage/ledger";
@@ -259,8 +260,18 @@ export default function Home() {
       try {
         const res = await fetch("/api/subscription");
         if (!res.ok) return;
-        const { tier } = (await res.json()) as { tier?: Tier };
-        if (!cancelled && tier) void setTier(tier);
+        const info = (await res.json()) as {
+          tier?: Tier;
+          renewsAt?: number | null;
+          topupCredits?: number;
+        };
+        if (!cancelled && info.tier) {
+          void setSubscription({
+            tier: info.tier,
+            renewsAt: info.renewsAt ?? null,
+            topupCredits: info.topupCredits ?? 0,
+          });
+        }
       } catch {
         /* best-effort; meter falls back to its stored tier */
       }

@@ -30,6 +30,8 @@ interface UsageRecord {
   id: "current"; // singleton
   tier: Tier;
   periodStart: number; // epoch ms — when the current billing period began
+  renewsAt: number | null; // epoch ms — the period end (LS renewal); null on free/unknown
+  topupCredits: number; // extra credits bought this period (from LS orders, synced by page.tsx)
   creditsUsed: number; // credits consumed this period (float)
   // raw running totals, kept for transparency / future analytics
   sttSeconds: number;
@@ -40,7 +42,9 @@ interface UsageRecord {
 
 export interface UsageSnapshot {
   tier: Tier;
-  allowance: number; // credits granted this period
+  allowance: number; // credits granted this period (plan allowance + top-ups)
+  baseAllowance: number; // plan allowance alone (before top-ups)
+  topupCredits: number; // credits added by top-up packs this period
   used: number; // credits consumed (rounded to 1dp)
   remaining: number; // credits left (never negative)
   fractionUsed: number; // 0..1, for a meter
@@ -48,6 +52,7 @@ export interface UsageSnapshot {
   freeMessagesLeft: number | null; // free tier: messages remaining this period; null when paid
   messageBlocked: boolean; // free tier hit its message cap → prompt to subscribe
   periodStart: number;
+  renewsAt: number | null; // when the allowance resets (LS renewal); null on free/unknown
   raw: { sttSeconds: number; chatMessages: number; turns: number };
 }
 
@@ -83,6 +88,8 @@ function fresh(now: number): UsageRecord {
     id: "current",
     tier: DEFAULT_TIER,
     periodStart: now,
+    renewsAt: null,
+    topupCredits: 0,
     creditsUsed: 0,
     sttSeconds: 0,
     chatMessages: 0,
@@ -91,9 +98,14 @@ function fresh(now: number): UsageRecord {
   };
 }
 
-// Reset the period's counters when the calendar month rolls over, preserving the tier.
+// Reset the period's counters (and top-ups) when the billing period ends, preserving the tier. When
+// the real LS renewal date is known we roll over on it; otherwise we fall back to the calendar month.
+// After a reset renewsAt is cleared — the next /api/subscription sync writes the new renewal.
 function rolledOver(rec: UsageRecord, now: number): UsageRecord {
-  if (monthBucket(rec.periodStart) === monthBucket(now)) return rec;
+  const ended = rec.renewsAt
+    ? now >= rec.renewsAt
+    : monthBucket(rec.periodStart) !== monthBucket(now);
+  if (!ended) return rec;
   return { ...fresh(now), tier: rec.tier };
 }
 
@@ -102,13 +114,17 @@ const listeners = new Set<() => void>();
 let cache: UsageSnapshot | null = null;
 
 function snapshotOf(rec: UsageRecord): UsageSnapshot {
-  const allowance = TIER_ALLOWANCE[rec.tier];
+  const baseAllowance = TIER_ALLOWANCE[rec.tier];
+  const topupCredits = Math.max(0, rec.topupCredits);
+  const allowance = baseAllowance + topupCredits;
   const usedRounded = Math.round(rec.creditsUsed * 10) / 10;
   const remaining = Math.max(0, allowance - rec.creditsUsed);
   const isFree = rec.tier === "none";
   return {
     tier: rec.tier,
     allowance,
+    baseAllowance,
+    topupCredits,
     used: usedRounded,
     remaining: Math.round(remaining * 10) / 10,
     fractionUsed: allowance > 0 ? Math.min(1, rec.creditsUsed / allowance) : 1,
@@ -116,6 +132,7 @@ function snapshotOf(rec: UsageRecord): UsageSnapshot {
     freeMessagesLeft: isFree ? Math.max(0, FREE_MESSAGE_LIMIT - rec.chatMessages) : null,
     messageBlocked: isFree && rec.chatMessages >= FREE_MESSAGE_LIMIT,
     periodStart: rec.periodStart,
+    renewsAt: rec.renewsAt,
     raw: { sttSeconds: rec.sttSeconds, chatMessages: rec.chatMessages, turns: rec.turns },
   };
 }
@@ -205,10 +222,31 @@ export async function recordKnowledgeQueries(count: number): Promise<UsageSnapsh
   });
 }
 
-/** Set the tier (later: called when a verified subscription is created/changed/cancelled). */
+/** Set the tier (used for the signed-out path → free). Clears any synced top-ups/renewal. */
 export async function setTier(tier: Tier): Promise<UsageSnapshot> {
   return mutate((rec) => {
     rec.tier = tier;
+    if (tier === "none") {
+      rec.topupCredits = 0;
+      rec.renewsAt = null;
+    }
+  });
+}
+
+/**
+ * Apply the live plan info from Lemon Squeezy (via /api/subscription): tier, next renewal date, and
+ * this period's top-up credits. LS is authoritative for all three — the client never grants credits
+ * itself. Top-ups raise the allowance immediately, so a maxed-out user drops back below 100%.
+ */
+export async function setSubscription(info: {
+  tier: Tier;
+  renewsAt: number | null;
+  topupCredits: number;
+}): Promise<UsageSnapshot> {
+  return mutate((rec) => {
+    rec.tier = info.tier;
+    rec.renewsAt = info.renewsAt;
+    rec.topupCredits = Math.max(0, info.topupCredits || 0);
   });
 }
 

@@ -6,6 +6,9 @@
 // LS is a Merchant of Record (handles EU VAT + holds the customer list).
 
 export const CHECKOUT_URL = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL ?? "";
+// One-time "credit top-up" product's checkout URL. Buying it adds a pack of credits to the current
+// period (counted server-side from LS orders — see lib/billing/lemonsqueezy.ts).
+export const TOPUP_URL = process.env.NEXT_PUBLIC_LEMONSQUEEZY_TOPUP_URL ?? "";
 const LS_JS = "https://assets.lemonsqueezy.com/lemon.js";
 
 interface LemonSqueezyApi {
@@ -63,20 +66,30 @@ function load(): Promise<boolean> {
   return ready;
 }
 
-function buildUrl(email: string, overlay: boolean): string {
-  const sep = CHECKOUT_URL.includes("?") ? "&" : "?";
+function buildUrl(base: string, email: string, overlay: boolean): string {
+  const sep = base.includes("?") ? "&" : "?";
   const embed = overlay ? "embed=1&" : "";
-  return `${CHECKOUT_URL}${sep}${embed}checkout[email]=${encodeURIComponent(email)}`;
+  return `${base}${sep}${embed}checkout[email]=${encodeURIComponent(email)}`;
 }
 
-/** Open checkout prefilled with `email`. Overlay if lemon.js loads; new-tab fallback otherwise. */
-export function openCheckout(email: string): void {
-  if (!CHECKOUT_URL) return;
+/** Open a LS checkout `base` prefilled with `email`. Overlay if lemon.js loads; new-tab fallback. */
+function openLemon(base: string, email: string): void {
+  if (!base) return;
   void load().then((ok) => {
     if (ok && window.LemonSqueezy?.Url?.Open) {
-      window.LemonSqueezy.Url.Open(buildUrl(email, true));
+      window.LemonSqueezy.Url.Open(buildUrl(base, email, true));
     } else {
-      window.open(buildUrl(email, false), "_blank", "noopener,noreferrer");
+      window.open(buildUrl(base, email, false), "_blank", "noopener,noreferrer");
     }
   });
+}
+
+/** Open plan checkout (subscribe / upgrade) prefilled with `email`. */
+export function openCheckout(email: string): void {
+  openLemon(CHECKOUT_URL, email);
+}
+
+/** Open the one-time credit top-up checkout prefilled with `email`. */
+export function openTopup(email: string): void {
+  openLemon(TOPUP_URL, email);
 }
