@@ -13,5 +13,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // Skip API routes, Next internals, and any static file (a path with an extension, e.g. logo.png,
+  // icon.png, *.svg). Otherwise the get.ciocu.app → /get rewrite would turn asset requests into
+  // /get/logo.png and 404 them.
+  matcher: ["/((?!api|_next|.*\\..*).*)"],
 };
