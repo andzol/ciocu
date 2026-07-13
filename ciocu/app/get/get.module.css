@@ -158,9 +158,7 @@
 
 .closing { position:relative; z-index:2; min-height:780px; padding:140px 24px; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; text-align:center; border-top:1px solid var(--line); }
 .closingAura { position:absolute; width:740px; height:500px; background:radial-gradient(ellipse,rgba(38,192,211,.13),transparent 70%); filter:blur(15px); }
-.miniEyes { position:relative; z-index:2; display:flex; gap:12px; margin-bottom:40px; filter:drop-shadow(0 0 13px var(--cyan)); }
-.miniEyes i { width:24px; height:14px; display:block; border:2px solid var(--cyan); border-radius:65% 35%; }
-.miniEyes i:last-child { transform:scaleX(-1); }
+.miniLogo { position:relative; z-index:2; height:48px; width:auto; display:block; margin-bottom:40px; filter:drop-shadow(0 0 16px rgba(97,239,255,.5)); }
 .closing > p { position:relative; margin:0 0 25px; color:#7b9499; font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
 .closing h2 { position:relative; margin:0 0 45px; font-size:clamp(55px,7vw,104px); line-height:.92; letter-spacing:-.07em; font-weight:440; }
 .closing .primaryCta { position:relative; min-width:190px; }

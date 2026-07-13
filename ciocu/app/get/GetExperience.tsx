@@ -198,7 +198,8 @@ export default function GetExperience() {
 
       <section className={styles.closing}>
         <div className={styles.closingAura} />
-        <div className={styles.miniEyes} aria-hidden="true"><i /><i /></div>
+        {/* eslint-disable-next-line @next/next/no-img-element -- small static brand logo */}
+        <img className={styles.miniLogo} src="/logo.png" alt="" aria-hidden="true" width={78} height={48} />
         <p>There&apos;s someone here.</p>
         <h2>Meet the AI that<br /><em>remembers you.</em></h2>
         <a className={styles.primaryCta} href={APP_URL}>Meet Ciocu <ArrowRight weight="bold" /></a>
