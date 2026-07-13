@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, SignOut } from "@phosphor-icons/react";
+import { X, SignOut, Info, Lightning } from "@phosphor-icons/react";
 import { setProfile, useGoogleUser } from "@/lib/auth/session";
 import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
-import {
-  CREDITS_PER_CHAT_MESSAGE,
-  CREDITS_PER_VOICE_MINUTE,
-  FREE_MESSAGE_LIMIT,
-} from "@/lib/usage/rates";
+import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
 import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
+
+interface KnowledgeBase {
+  id: string;
+  title: string;
+  name: string;
+}
 
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
@@ -22,7 +24,10 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const user = useGoogleUser();
   const usage = useUsage();
   const enabledKnowledge = useEnabledKnowledge();
-  const [bases, setBases] = useState<{ id: string; title: string }[]>([]);
+  const [bases, setBases] = useState<KnowledgeBase[]>([]);
+  // Which bases have a description card available (id → its URL), and the one being viewed.
+  const [infoUrls, setInfoUrls] = useState<Record<string, string>>({});
+  const [infoView, setInfoView] = useState<{ title: string; url: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -33,14 +38,27 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Load the available knowledge bases (LlamaCloud pipelines) when the panel opens.
+  // Load the available knowledge bases (LlamaCloud pipelines) when the panel opens, then probe for
+  // each base's optional description card (a static HTML file) so we only show the info link when
+  // one actually exists.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     fetch("/api/knowledge")
       .then((r) => (r.ok ? r.json() : { bases: [] }))
       .then((d) => {
-        if (!cancelled) setBases(Array.isArray(d?.bases) ? d.bases : []);
+        if (cancelled) return;
+        const list: KnowledgeBase[] = Array.isArray(d?.bases) ? d.bases : [];
+        setBases(list);
+        list.forEach((b) => {
+          if (!b.name) return;
+          const url = `/knowledge/${b.name}-knowledge-description.html`;
+          fetch(url, { method: "HEAD" })
+            .then((r) => {
+              if (!cancelled && r.ok) setInfoUrls((prev) => ({ ...prev, [b.id]: url }));
+            })
+            .catch(() => {});
+        });
       })
       .catch(() => {});
     return () => {
@@ -55,10 +73,6 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     setProfile(null);
   }
 
-  // Human-readable "what's left": voice minutes and messages the remaining credits could buy.
-  const remaining = usage?.remaining ?? 0;
-  const voiceMinLeft = Math.round(remaining / CREDITS_PER_VOICE_MINUTE);
-  const messagesLeft = Math.round(remaining / CREDITS_PER_CHAT_MESSAGE);
   const pctUsed = Math.round((usage?.fractionUsed ?? 0) * 100);
   const renewsLabel = usage?.renewsAt
     ? new Date(usage.renewsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
@@ -140,16 +154,13 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   >
                     <div className="meter-fill" style={{ width: `${pctUsed}%` }} />
                   </div>
-                  <span className="usage-pct">{pctUsed}% used</span>
+                  <span className="usage-pct">
+                    {pctUsed}% <Lightning size={13} weight="fill" className="energy-icon" /> used
+                  </span>
                 </div>
 
                 <p className="settings-muted settings-usage-approx">
-                  {renewsLabel ? `Renews ${renewsLabel}` : "Resets monthly"} ·{" "}
-                  {usage.remaining.toLocaleString()} of {usage.allowance.toLocaleString()} credits left
-                  {usage.topupCredits > 0 && ` · incl. ${usage.topupCredits.toLocaleString()} top-up`}
-                </p>
-                <p className="settings-muted settings-usage-approx">
-                  ≈ {voiceMinLeft} min of voice, or {messagesLeft.toLocaleString()} messages
+                  {renewsLabel ? `Renews ${renewsLabel}` : "Resets monthly"}
                 </p>
 
                 {usage.voiceThrottled && (
@@ -204,7 +215,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             ) : (
               <ul className="kb-list">
                 {bases.map((b) => (
-                  <li key={b.id}>
+                  <li key={b.id} className="kb-row">
                     <label className="kb-item">
                       <input
                         type="checkbox"
@@ -212,14 +223,59 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                         checked={enabledKnowledge.includes(b.id)}
                         onChange={(e) => toggleKnowledge(b.id, e.target.checked)}
                       />
-                      <span>{b.title}</span>
+                      <span className="kb-name">
+                        {b.title}
+                        <Lightning
+                          size={14}
+                          weight="fill"
+                          className="energy-icon"
+                          aria-label="Uses extra energy when active"
+                        />
+                      </span>
                     </label>
+                    {infoUrls[b.id] && (
+                      <button
+                        type="button"
+                        className="kb-info-btn"
+                        aria-label={`About ${b.title}`}
+                        title={`About ${b.title}`}
+                        onClick={() => setInfoView({ title: b.title, url: infoUrls[b.id] })}
+                      >
+                        <Info size={17} weight="regular" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
         </div>
+
+        {/* Description card for a knowledge base — the base's own standalone HTML, in an iframe. */}
+        {infoView && (
+          <div
+            className="kb-info-modal"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setInfoView(null);
+            }}
+          >
+            <div className="kb-info-card" onMouseDown={(e) => e.stopPropagation()}>
+              <header className="modal-header">
+                <h2 className="modal-title">{infoView.title}</h2>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Close description"
+                  onClick={() => setInfoView(null)}
+                >
+                  <X size={20} />
+                </button>
+              </header>
+              <iframe className="kb-info-frame" src={infoView.url} title={infoView.title} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

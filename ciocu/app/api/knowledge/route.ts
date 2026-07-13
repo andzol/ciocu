@@ -15,7 +15,7 @@ function titleize(name: string): string {
   return t || name;
 }
 
-let cache: { at: number; bases: { id: string; title: string }[] } | null = null;
+let cache: { at: number; bases: { id: string; title: string; name: string }[] } | null = null;
 const TTL = 60_000;
 
 export async function GET() {
@@ -23,7 +23,9 @@ export async function GET() {
     return Response.json({ bases: cache.bases });
   }
   const pipelines = await listPipelines();
-  const bases = pipelines.map((p) => ({ id: p.id, title: titleize(p.name) }));
+  // `name` is the raw pipeline slug (e.g. "ciocu-sexual-psychology") — the client uses it to find
+  // the base's description card at /knowledge/<name>-knowledge-description.html.
+  const bases = pipelines.map((p) => ({ id: p.id, title: titleize(p.name), name: p.name }));
   cache = { at: Date.now(), bases };
   return Response.json({ bases });
 }

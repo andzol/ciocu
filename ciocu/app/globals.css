@@ -432,6 +432,63 @@ body:has(.marketing-shell) {
   cursor: pointer;
   flex-shrink: 0;
 }
+/* A base row: the toggle label plus an optional "info" button opening its description card. */
+.kb-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.kb-row .kb-item {
+  flex: 1;
+  min-width: 0;
+}
+.kb-info-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+.kb-info-btn:hover {
+  color: var(--cyan);
+  background: var(--surface-2);
+}
+
+/* Knowledge-base description viewer — the base's own standalone HTML inside an iframe. */
+.kb-info-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(3, 5, 8, 0.62);
+}
+.kb-info-card {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, 100%);
+  height: min(80vh, 720px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.kb-info-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #0c0c14;
+}
 
 .settings-account {
   display: flex;
@@ -490,27 +547,45 @@ body:has(.marketing-shell) {
 }
 .usage-pct {
   flex: none;
-  min-width: 4.5em;
+  min-width: 5.5em;
   text-align: right;
   font-size: 13px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-/* Row of plan actions (Top up / Upgrade) that share the width evenly. */
+/* Small cyan energy mark: shown in the % readout and beside each knowledge base (they cost energy). */
+.energy-icon {
+  color: var(--cyan);
+  vertical-align: -2px;
+  flex: none;
+}
+.kb-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* Row of plan actions (Top up / Upgrade): share the width evenly and match height exactly. The
+   two-class selector outranks the base .btn-ghost rule (else it'd win the tie and keep its own
+   padding/font); a fixed height makes both buttons identical regardless of border/font. */
 .settings-actions {
   display: flex;
   gap: 10px;
   margin-top: 16px;
 }
-.settings-actions > * {
+.settings-actions > .btn-primary,
+.settings-actions > .btn-ghost {
   flex: 1;
   margin-top: 0;
-}
-.settings-actions .btn-ghost {
+  height: 46px;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  padding: 11px 16px;
+  padding: 0 16px;
   font-size: 15px;
   font-weight: 700;
+  border-radius: 12px;
 }
 
 /* buttons */
