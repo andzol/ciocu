@@ -50,6 +50,8 @@
 }
 
 .brand { display: inline-flex; align-items: center; gap: 11px; width: fit-content; font-size: 25px; font-weight: 700; letter-spacing: -.04em; }
+.brandLogo { height: 26px; width: auto; display: block; filter: drop-shadow(0 0 9px rgba(97, 239, 255, .45)); }
+.footer .brandLogo { height: 22px; }
 .brandSignal { display: inline-flex; align-items: center; gap: 4px; }
 .brandSignal i { position: relative; display: grid; place-items: center; width: 14px; height: 20px; border: 1px solid var(--cyan-bright); border-radius: 68% 42%; background: var(--cyan); transform: rotate(6deg); box-shadow: 0 0 13px rgba(97, 239, 255, .7), 0 0 6px rgba(255,255,255,.42) inset; }
 .brandSignal i::after { content: ""; width: 5px; height: 7px; border-radius: 50%; background: #020608; box-shadow: 0 0 2px rgba(0,0,0,.85); }

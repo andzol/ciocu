@@ -74,7 +74,8 @@ export default function GetExperience() {
 
       <nav className={styles.nav} aria-label="Main navigation">
         <a className={styles.brand} href="#top" aria-label="Ciocu home">
-          <span className={styles.brandSignal} aria-hidden="true"><i /><i /></span>
+          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand logo */}
+          <img className={styles.brandLogo} src="/logo.png" alt="" width={42} height={26} />
           Ciocu
         </a>
         <div className={`${styles.navLinks} ${menuOpen ? styles.navLinksOpen : ""}`}>
@@ -205,7 +206,11 @@ export default function GetExperience() {
       </section>
 
       <footer className={styles.footer}>
-        <a className={styles.brand} href="#top"><span className={styles.brandSignal} aria-hidden="true"><i /><i /></span>Ciocu</a>
+        <a className={styles.brand} href="#top">
+          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand logo */}
+          <img className={styles.brandLogo} src="/logo.png" alt="" width={42} height={26} />
+          Ciocu
+        </a>
         <p>Emotional AI. Personal memory.</p>
         <div><span>© {new Date().getFullYear()} Ciocu</span><a href={APP_URL}>Open app</a></div>
       </footer>
