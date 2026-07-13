@@ -33,11 +33,10 @@ import {
 import type { Tier } from "@/lib/usage/rates";
 import { getEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
+import { DEFAULT_CAPTIONS, pickCaptions } from "@/lib/i18n/captions";
 
-const GREETING = "Hi. Catch my eye whenever you'd like to talk.";
-const ERROR_LINE = "I lost my thread for a second — say that again?";
-const FREE_LIMIT_LINE =
-  "That's the last of our free messages. Subscribe and I'll keep going — and start remembering you.";
+// Ciocu's caption lines default to English for SSR; the browser-language versions are applied on
+// mount (see below) to avoid a hydration mismatch.
 
 type LLMRole = "system" | "user" | "assistant";
 
@@ -51,15 +50,24 @@ export default function Home() {
   const sendRef = useRef<(text: string) => void>(() => {});
   const moodRef = useRef<Mood>({ valence: BASELINE.valence, arousal: BASELINE.arousal, bond: 0 });
   const presenceRef = useRef<PresenceHandle | null>(null);
+  const captionsRef = useRef(DEFAULT_CAPTIONS);
   const usage = useUsage();
   const usageRef = useRef(usage);
   usageRef.current = usage;
 
-  const [caption, setCaption] = useState(GREETING);
+  const [caption, setCaption] = useState(DEFAULT_CAPTIONS.greeting);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attending, setAttending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const user = useGoogleUser();
+
+  // Localize Ciocu's caption lines to the browser language (client-only, so SSR stays English and
+  // there's no hydration mismatch). Only swap the greeting if it's still the untouched default.
+  useEffect(() => {
+    const c = pickCaptions();
+    captionsRef.current = c;
+    setCaption((prev) => (prev === DEFAULT_CAPTIONS.greeting ? c.greeting : prev));
+  }, []);
 
   const applyMessages = useCallback((next: ChatMessage[]) => {
     messagesRef.current = next;
@@ -148,7 +156,7 @@ export default function Home() {
 
       // Free plan: cap at FREE_MESSAGE_LIMIT exchanges, then nudge to subscribe.
       if (usageRef.current?.messageBlocked) {
-        setCaption(FREE_LIMIT_LINE);
+        setCaption(captionsRef.current.freeLimit);
         setSettingsOpen(true);
         return;
       }
@@ -236,9 +244,9 @@ export default function Home() {
         schedulePush(); // sync this exchange across devices (debounced; no-op if not eligible)
       } catch {
         const errored = [...messagesRef.current];
-        errored[errored.length - 1] = { role: "ciocu", text: ERROR_LINE };
+        errored[errored.length - 1] = { role: "ciocu", text: captionsRef.current.error };
         applyMessages(errored);
-        setCaption(ERROR_LINE);
+        setCaption(captionsRef.current.error);
         engineRef.current?.setState("neutral");
       } finally {
         generatingRef.current = false;
