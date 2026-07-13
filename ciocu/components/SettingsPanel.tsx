@@ -14,6 +14,34 @@ interface KnowledgeBase {
   name: string;
 }
 
+// Dark, arrow-less scrollbar for the description card. Injected into the (same-origin) iframe on
+// load so every card matches the app without each HTML file having to style its own scrollbar.
+// Uses the card's own theme vars (--rule/--muted) so it tracks light/dark.
+const CARD_SCROLLBAR_CSS = `
+  html { scrollbar-width: thin; scrollbar-color: var(--rule, #24242e) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--rule, #24242e);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted, #72728a); }
+`;
+
+function styleIframeScrollbar(e: React.SyntheticEvent<HTMLIFrameElement>): void {
+  try {
+    const doc = e.currentTarget.contentDocument;
+    if (!doc) return;
+    const style = doc.createElement("style");
+    style.textContent = CARD_SCROLLBAR_CSS;
+    doc.head.appendChild(style);
+  } catch {
+    /* cross-origin or not ready — leave the default scrollbar */
+  }
+}
+
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
   basic: "Basic — $19.99/mo",
@@ -272,7 +300,12 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   <X size={20} />
                 </button>
               </header>
-              <iframe className="kb-info-frame" src={infoView.url} title={infoView.title} />
+              <iframe
+                className="kb-info-frame"
+                src={infoView.url}
+                title={infoView.title}
+                onLoad={styleIframeScrollbar}
+              />
             </div>
           </div>
         )}

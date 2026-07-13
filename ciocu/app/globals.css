@@ -32,6 +32,28 @@
   box-sizing: border-box;
 }
 
+/* Dark, arrow-less scrollbars to match the product UI (WebKit + Firefox). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
 html,
 body {
   margin: 0;
@@ -425,12 +447,36 @@ body:has(.marketing-shell) {
 .kb-item:hover {
   background: var(--surface-2);
 }
+/* Custom checkbox styled like the ghost buttons: dark + bordered when off, cyan when on. */
 .kb-check {
+  appearance: none;
+  -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  accent-color: var(--cyan);
-  cursor: pointer;
   flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+.kb-check:hover {
+  border-color: var(--border-cyan);
+}
+.kb-check:checked {
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+.kb-check:checked::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  margin-top: -1px;
+  border: solid #04252c;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 /* A base row: the toggle label plus an optional "info" button opening its description card. */
 .kb-row {
@@ -547,12 +593,13 @@ body:has(.marketing-shell) {
 }
 .usage-pct {
   flex: none;
-  min-width: 5.5em;
-  text-align: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
   font-size: 13px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 /* Small cyan energy mark: shown in the % readout and beside each knowledge base (they cost energy). */
 .energy-icon {
