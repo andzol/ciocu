@@ -56,6 +56,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   // Which bases have a description card available (id → its URL), and the one being viewed.
   const [infoUrls, setInfoUrls] = useState<Record<string, string>>({});
   const [infoView, setInfoView] = useState<{ title: string; url: string } | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +71,9 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   // each base's optional description card (a static HTML file) so we only show the info link when
   // one actually exists.
   useEffect(() => {
-    if (!open) return;
+    // Knowledge is a subscriber feature (bases run on the monthly energy allowance), so free users
+    // never list bases — no need to hit LlamaCloud for them.
+    if (!open || !usage || usage.tier === "none") return;
     let cancelled = false;
     fetch("/api/knowledge")
       .then((r) => (r.ok ? r.json() : { bases: [] }))
@@ -92,7 +95,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, usage?.tier]);
 
   if (!open) return null;
 
@@ -200,38 +203,47 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </>
             )}
 
-            {/* Actions: top up this period's credits, and/or change plan. */}
-            {(canTopUp || (user && CHECKOUT_URL && usage?.tier !== "pro")) && (
-              <div className="settings-actions">
-                {canTopUp && (
-                  <button
-                    type="button"
-                    className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
-                    onClick={() => {
-                      openTopup(user!.email);
-                      onClose();
-                    }}
-                  >
-                    Top up
-                  </button>
-                )}
-                {user && CHECKOUT_URL && usage?.tier !== "pro" && (
-                  <button
-                    type="button"
-                    className={usage?.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
-                    onClick={() => {
-                      openCheckout(user.email);
-                      onClose();
-                    }}
-                  >
-                    {usage?.tier === "basic" ? "Upgrade plan" : "Subscribe"}
-                  </button>
-                )}
-              </div>
+            {/* Actions: top up this period's credits, and/or subscribe/upgrade. Free users see a
+                Subscribe button too (clicking prompts sign-in, since checkout needs their email). */}
+            {(canTopUp || (CHECKOUT_URL && usage && usage.tier !== "pro")) && (
+              <>
+                <div className="settings-actions">
+                  {canTopUp && (
+                    <button
+                      type="button"
+                      className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
+                      onClick={() => {
+                        openTopup(user!.email);
+                        onClose();
+                      }}
+                    >
+                      Top up
+                    </button>
+                  )}
+                  {CHECKOUT_URL && usage && usage.tier !== "pro" && (
+                    <button
+                      type="button"
+                      className={usage.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
+                      onClick={() => {
+                        if (!user) {
+                          setHint("Sign in with Google (top left) to subscribe.");
+                          return;
+                        }
+                        openCheckout(user.email);
+                        onClose();
+                      }}
+                    >
+                      {usage.tier === "basic" ? "Upgrade plan" : "Subscribe"}
+                    </button>
+                  )}
+                </div>
+                {hint && <p className="settings-warn">{hint}</p>}
+              </>
             )}
           </section>
 
-          {/* ── Knowledge ───────────────────────────────────────────── */}
+          {/* ── Knowledge (subscribers only — bases run on your monthly energy) ─────── */}
+          {usage && usage.tier !== "none" && (
           <section className="settings-section">
             <h3 className="settings-heading">Knowledge</h3>
             <p className="settings-muted settings-usage-approx">
@@ -277,6 +289,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </ul>
             )}
           </section>
+          )}
         </div>
 
         {/* Description card for a knowledge base — the base's own standalone HTML, in an iframe. */}
