@@ -12,9 +12,15 @@ import {
   Books,
   Brain,
   CaretRight,
+  Question,
+  FileText,
+  Envelope,
+  ShieldCheck,
 } from "@phosphor-icons/react";
 import { useGoogleUser } from "@/lib/auth/session";
 import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
+import { findSupportBase, loadBases } from "@/lib/knowledge/bases";
+import { toggleKnowledge } from "@/lib/knowledge/enabled";
 
 interface Item {
   id: string;
@@ -27,10 +33,17 @@ const ITEMS: Item[] = [
   { id: "gift", label: "Gift Ciocu", icon: <Gift size={20} weight="regular" /> },
 ];
 
-export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
+export default function HamburgerMenu({
+  onOpenSettings,
+  onOpenChat,
+}: {
+  onOpenSettings: () => void;
+  onOpenChat: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const user = useGoogleUser();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -57,6 +70,7 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
     if (!open) {
       setHint(null);
       setMemoryOpen(false);
+      setHelpOpen(false);
     }
   }, [open]);
 
@@ -77,6 +91,20 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
   function handleSettings() {
     setOpen(false);
     onOpenSettings();
+  }
+
+  /**
+   * Support = ask Ciocu herself. Switch her own docs on (free — never costs energy) and open the
+   * chat straight away, so the user can just type the question. The chat opens either way; the
+   * base is a best-effort enrichment.
+   */
+  function handleSupport() {
+    setOpen(false);
+    onOpenChat();
+    void loadBases().then((bases) => {
+      const support = findSupportBase(bases);
+      if (support) toggleKnowledge(support.id, true);
+    });
   }
 
   async function handleDownload() {
@@ -189,6 +217,48 @@ export default function HamburgerMenu({ onOpenSettings }: { onOpenSettings: () =
             </span>
             <span>Subscribe</span>
           </button>
+
+          {/* Help — expands to the legal page and a way to reach a human. */}
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            aria-expanded={helpOpen}
+            onClick={() => setHelpOpen((v) => !v)}
+          >
+            <span className="menu-item-icon">
+              <Question size={20} weight="regular" />
+            </span>
+            <span>Help</span>
+            <CaretRight size={15} weight="bold" className={`menu-caret${helpOpen ? " menu-caret--open" : ""}`} />
+          </button>
+          {helpOpen && (
+            <div className="menu-sub">
+              <a role="menuitem" className="menu-item menu-item--sub" href="/terms">
+                <span className="menu-item-icon">
+                  <FileText size={19} weight="regular" />
+                </span>
+                <span>Terms of use</span>
+              </a>
+              <a role="menuitem" className="menu-item menu-item--sub" href="/privacy">
+                <span className="menu-item-icon">
+                  <ShieldCheck size={19} weight="regular" />
+                </span>
+                <span>Privacy Policy</span>
+              </a>
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item menu-item--sub"
+                onClick={handleSupport}
+              >
+                <span className="menu-item-icon">
+                  <Envelope size={19} weight="regular" />
+                </span>
+                <span>Support</span>
+              </button>
+            </div>
+          )}
 
           {ITEMS.map((item) => (
             <button key={item.id} type="button" role="menuitem" className="menu-item">

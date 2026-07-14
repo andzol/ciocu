@@ -16,11 +16,16 @@ export interface ChatMessage {
 export default function ChatDrawer({
   messages,
   onSend,
+  open,
+  onOpenChange,
 }: {
   messages: ChatMessage[];
   onSend: (text: string) => void;
+  /** Controlled by the page, so other surfaces (e.g. menu → Support) can open the chat. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const setOpen = onOpenChange;
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);

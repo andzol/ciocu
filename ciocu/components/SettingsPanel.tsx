@@ -8,11 +8,7 @@ import { useUsage } from "@/lib/usage/ledger";
 import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
 import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
 
-interface KnowledgeBase {
-  id: string;
-  title: string;
-  name: string;
-}
+import { loadBases, type KnowledgeBase } from "@/lib/knowledge/bases";
 
 // Dark, arrow-less scrollbar for the description card. Injected into the (same-origin) iframe on
 // load so every card matches the app without each HTML file having to style its own scrollbar.
@@ -51,6 +47,7 @@ const TIER_LABEL: Record<string, string> = {
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const user = useGoogleUser();
   const usage = useUsage();
+  const tier = usage?.tier;
   const enabledKnowledge = useEnabledKnowledge();
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   // Which bases have a description card available (id → its URL), and the one being viewed.
@@ -73,13 +70,11 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   useEffect(() => {
     // Knowledge is a subscriber feature (bases run on the monthly energy allowance), so free users
     // never list bases — no need to hit LlamaCloud for them.
-    if (!open || !usage || usage.tier === "none") return;
+    if (!open || !tier || tier === "none") return;
     let cancelled = false;
-    fetch("/api/knowledge")
-      .then((r) => (r.ok ? r.json() : { bases: [] }))
-      .then((d) => {
+    loadBases()
+      .then((list) => {
         if (cancelled) return;
-        const list: KnowledgeBase[] = Array.isArray(d?.bases) ? d.bases : [];
         setBases(list);
         list.forEach((b) => {
           if (!b.name) return;
@@ -95,7 +90,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     return () => {
       cancelled = true;
     };
-  }, [open, usage?.tier]);
+  }, [open, tier]);
 
   if (!open) return null;
 
@@ -248,7 +243,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             <h3 className="settings-heading">Knowledge</h3>
             <p className="settings-muted settings-usage-approx">
               Reference knowledge Ciocu can draw on. Each base you switch on is searched on every
-              message — so more active bases use more energy.
+              message — so more active bases use more energy. Bases marked <em>free</em> never touch
+              your allowance.
             </p>
             {bases.length === 0 ? (
               <p className="settings-muted">No knowledge bases available yet.</p>
@@ -265,12 +261,23 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                       />
                       <span className="kb-name">
                         {b.title}
-                        <Lightning
-                          size={14}
-                          weight="fill"
-                          className="energy-icon"
-                          aria-label="Uses extra energy when active"
-                        />
+                        {b.free ? (
+                          <span className="kb-free" title="Never uses your energy">
+                            free
+                          </span>
+                        ) : (
+                          <Lightning
+                            size={14}
+                            weight="fill"
+                            className="energy-icon"
+                            aria-label="Uses extra energy when active"
+                          />
+                        )}
+                        {b.adult && (
+                          <span className="kb-adult" title="Adult material — you must be 18 or older">
+                            18+
+                          </span>
+                        )}
                       </span>
                     </label>
                     {infoUrls[b.id] && (

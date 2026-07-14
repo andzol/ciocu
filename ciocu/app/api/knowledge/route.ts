@@ -15,7 +15,23 @@ function titleize(name: string): string {
   return t || name;
 }
 
-let cache: { at: number; bases: { id: string; title: string; name: string }[] } | null = null;
+// Bases whose material is adult-only. The UI marks these 18+ and the terms require you to be 18 to
+// switch one on. Keyed by pipeline slug — add a slug here when a base carries adult content.
+const ADULT_BASES = new Set(["ciocu-sexual-psychology"]);
+
+// Bases that never cost the user energy. Ciocu's own support docs are free to consult: nobody
+// should spend their allowance asking how to cancel. We still pay the retrieval cost.
+const FREE_BASES = new Set(["ciocu-support"]);
+
+interface Base {
+  id: string;
+  title: string;
+  name: string;
+  adult: boolean;
+  free: boolean;
+}
+
+let cache: { at: number; bases: Base[] } | null = null;
 const TTL = 60_000;
 
 export async function GET() {
@@ -25,7 +41,13 @@ export async function GET() {
   const pipelines = await listPipelines();
   // `name` is the raw pipeline slug (e.g. "ciocu-sexual-psychology") — the client uses it to find
   // the base's description card at /knowledge/<name>-knowledge-description.html.
-  const bases = pipelines.map((p) => ({ id: p.id, title: titleize(p.name), name: p.name }));
+  const bases: Base[] = pipelines.map((p) => ({
+    id: p.id,
+    title: titleize(p.name),
+    name: p.name,
+    adult: ADULT_BASES.has(p.name),
+    free: FREE_BASES.has(p.name),
+  }));
   cache = { at: Date.now(), bases };
   return Response.json({ bases });
 }

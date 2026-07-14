@@ -32,6 +32,7 @@ import {
 } from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
 import { getEnabledKnowledge } from "@/lib/knowledge/enabled";
+import { billableCount, loadBases } from "@/lib/knowledge/bases";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
 import { DEFAULT_CAPTIONS, pickCaptions } from "@/lib/i18n/captions";
 
@@ -59,6 +60,7 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attending, setAttending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const user = useGoogleUser();
 
   // Localize Ciocu's caption lines to the browser language (client-only, so SSR stays English and
@@ -228,7 +230,13 @@ export default function Home() {
         setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
         persist("ciocu", reply);
         void recordChatMessage(); // meter her reply against the monthly allowance
-        if (activeKnowledge.length) void recordKnowledgeQueries(activeKnowledge.length);
+        // Meter only the bases that cost energy — the support base is free to consult.
+        if (activeKnowledge.length) {
+          void loadBases().then((bases) => {
+            const billable = billableCount(activeKnowledge, bases);
+            if (billable > 0) void recordKnowledgeQueries(billable);
+          });
+        }
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
         // remember this exchange in the background: extract durable memories -> embed -> store.
@@ -350,7 +358,10 @@ export default function Home() {
     <main className="stage">
       <header className="topbar">
         <div className="topbar-left">
-          <HamburgerMenu onOpenSettings={() => setSettingsOpen(true)} />
+          <HamburgerMenu
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenChat={() => setChatOpen(true)}
+          />
           <GoogleAuth />
         </div>
         <div className="topbar-center">
@@ -368,7 +379,7 @@ export default function Home() {
       </div>
 
       <VersionBadge />
-      <ChatDrawer messages={messages} onSend={sendMessage} />
+      <ChatDrawer messages={messages} onSend={sendMessage} open={chatOpen} onOpenChange={setChatOpen} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding onEnable={() => presenceRef.current?.enable()} />
     </main>
