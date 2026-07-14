@@ -1,9 +1,19 @@
 // Turn a finished exchange into stored memory blocks: ask /api/reflect what's worth keeping, embed
 // each locally, and write it with the emotional charge of the moment. Fire-and-forget from the UI.
 
-import { embed } from "@/lib/embeddings/embedder";
+import { cosine, embed } from "@/lib/embeddings/embedder";
+import { assignCluster, ensureClusters } from "@/lib/memory/clusters";
 import { getActiveBlocks, newId, putBlock, type BlockKind } from "@/lib/memory/store";
-import { pickTopicId, type TopicCandidate } from "@/lib/memory/topics";
+
+/** Nearest existing block, for the near-duplicate guard. */
+function nearestSim(v: Float32Array, pool: Float32Array[]): number {
+  let best = -1;
+  for (const p of pool) {
+    const s = cosine(v, p);
+    if (s > best) best = s;
+  }
+  return best;
+}
 
 interface ReflectMsg {
   role: "user" | "assistant";
@@ -44,17 +54,18 @@ export async function rememberExchange(
     // Strong feeling => stickier memory (the amygdala trick).
     const salience = Math.min(1, 0.3 + Math.abs(mood.arousal) * 0.5 + Math.abs(mood.valence) * 0.2);
 
-    // Thread topics: each new block joins the topic of its nearest block (existing or same-batch).
-    const pool: TopicCandidate[] = (await getActiveBlocks()).map((b) => ({
-      embedding: b.embedding,
-      topicId: b.topicId,
-    }));
+    await ensureClusters(); // first run after the M4c→M4d upgrade re-clusters what's already there
+
+    // The near-duplicate guard compares against individual blocks, not centroids: "have I already
+    // stored this exact sentence?" is a different question from "which idea does it belong to".
+    const pool: Float32Array[] = (await getActiveBlocks()).map((b) => b.embedding);
+    const feeling = { valence: mood.valence, arousal: mood.arousal, salience };
 
     let stored = 0;
     for (let i = 0; i < items.length; i++) {
-      const { topicId, sim } = pickTopicId(vectors[i], pool);
-      // essentially already remembered — skip the near-duplicate (M5 sleep does fuller dedup)
-      if (sim > 0.96) continue;
+      // essentially already remembered — skip it (M5 sleep does the fuller dedup)
+      if (nearestSim(vectors[i], pool) > 0.96) continue;
+      const { clusterId } = await assignCluster(vectors[i], feeling, now);
       stored++;
       await putBlock({
         id: newId(),
@@ -70,9 +81,9 @@ export async function rememberExchange(
         lastRecalledAt: now,
         reinforced: 0,
         status: "active",
-        topicId,
+        clusterId,
       });
-      pool.push({ embedding: vectors[i], topicId });
+      pool.push(vectors[i]);
     }
     return stored;
   } catch {

@@ -33,6 +33,7 @@ import {
 import type { Tier } from "@/lib/usage/rates";
 import { getEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { billableCount, loadBases } from "@/lib/knowledge/bases";
+import { ensureClusters } from "@/lib/memory/clusters";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
 import { DEFAULT_CAPTIONS, pickCaptions } from "@/lib/i18n/captions";
 
@@ -142,6 +143,10 @@ export default function Home() {
           }
         }
         schedulePush(3000); // reconcile any local-only changes up to the server
+        // Warm the memory clusters now (idempotent, and a no-op once assigned). Right after the
+        // M4c→M4d upgrade — or an import — this re-clusters what's already stored, and doing it
+        // here keeps that cost out of the first reply, where recall is capped at 2.5s.
+        void ensureClusters();
       } catch {
         threadIdRef.current = newId();
       }

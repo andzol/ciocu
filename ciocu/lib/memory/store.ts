@@ -38,7 +38,38 @@ export interface StoredBlock {
   lastRecalledAt: number;
   reinforced: number;
   status: "active" | "archived" | "superseded";
-  topicId?: string; // populated in M4c
+  clusterId?: string; // which memory cluster this belongs to (M4d)
+  topicId?: string; // legacy M4c single-linkage thread — superseded by clusterId, kept so older
+  // exports still import cleanly. Nothing reads it any more.
+}
+
+/**
+ * A memory cluster — the schema layer (see the ciocu-memory-emotion skill). Not a chain of blocks:
+ * a PROTOTYPE (centroid) with an emotional signature, which is why it doesn't drift the way
+ * single-linkage threads did.
+ *
+ * Fully DERIVED from its member blocks, so it's always rebuildable (principle #1) and is
+ * deliberately not exported/synced — `ensureClusters()` reconstructs it from blocks instead.
+ * The `*Sum` fields are accumulators that keep updates O(1) and exact.
+ */
+export interface StoredCluster {
+  id: string;
+  sum: Float32Array; // Σ member embeddings — centroid is exactly normalize(sum)
+  centroid: Float32Array; // normalize(sum), cached so scoring is a plain cosine
+  size: number;
+  simSum: number; // Σ member→centroid similarity at join; radius = simSum / size
+  radius: number; // mean similarity to the centroid = how tight/precise this cluster is
+  wSum: number; // Σ salience — the weight behind the emotional signature
+  vSum: number; // Σ salience·valence
+  aSum: number; // Σ salience·arousal
+  valence: number; // salience-weighted emotional signature: felt memories define the feel
+  arousal: number;
+  strength: number; // cluster-level salience; decays and is reinforced at sleep (M5b)
+  createdAt: number;
+  lastActiveAt: number;
+  status: "active" | "archived" | "merged";
+  mergedInto?: string;
+  gist?: string; // one-line abstraction, written at sleep (M5b)
 }
 
 interface CiocuDB extends DBSchema {
@@ -55,7 +86,12 @@ interface CiocuDB extends DBSchema {
   blocks: {
     key: string;
     value: StoredBlock;
-    indexes: { "by-status": string; "by-thread": string };
+    indexes: { "by-status": string; "by-thread": string; "by-cluster": string };
+  };
+  clusters: {
+    key: string;
+    value: StoredCluster;
+    indexes: { "by-status": string };
   };
 }
 
@@ -63,8 +99,8 @@ let dbPromise: Promise<IDBPDatabase<CiocuDB>> | null = null;
 
 function db() {
   if (!dbPromise) {
-    dbPromise = openDB<CiocuDB>("ciocu", 2, {
-      upgrade(d, oldVersion) {
+    dbPromise = openDB<CiocuDB>("ciocu", 3, {
+      upgrade(d, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) {
           const m = d.createObjectStore("messages", { keyPath: "id" });
           m.createIndex("by-thread", "threadId");
@@ -76,6 +112,14 @@ function db() {
           const b = d.createObjectStore("blocks", { keyPath: "id" });
           b.createIndex("by-status", "status");
           b.createIndex("by-thread", "threadId");
+        }
+        if (oldVersion < 3) {
+          // M4d: memory clusters. Existing blocks have no clusterId yet — they're re-clustered
+          // lazily by ensureClusters(), which also repairs the chained topics the old
+          // single-linkage threading produced. Safe: blocks are a derived, rebuildable cache.
+          const c = d.createObjectStore("clusters", { keyPath: "id" });
+          c.createIndex("by-status", "status");
+          tx.objectStore("blocks").createIndex("by-cluster", "clusterId");
         }
       },
     });
@@ -130,6 +174,37 @@ export async function getActiveBlocks(): Promise<StoredBlock[]> {
 export async function countActiveBlocks(): Promise<number> {
   const d = await db();
   return d.countFromIndex("blocks", "by-status", "active");
+}
+
+// ── Memory clusters ────────────────────────────────────────────────────────────
+export async function putCluster(cluster: StoredCluster): Promise<void> {
+  const d = await db();
+  await d.put("clusters", cluster);
+}
+
+export async function getActiveClusters(): Promise<StoredCluster[]> {
+  const d = await db();
+  return d.getAllFromIndex("clusters", "by-status", "active");
+}
+
+/** The blocks belonging to one cluster (any status) — used to rebuild a cluster from its members. */
+export async function getBlocksByCluster(clusterId: string): Promise<StoredBlock[]> {
+  const d = await db();
+  return d.getAllFromIndex("blocks", "by-cluster", clusterId);
+}
+
+/** Attach blocks to a cluster in one transaction (assignment + backfill). */
+export async function setBlockCluster(ids: string[], clusterId: string): Promise<void> {
+  if (ids.length === 0) return;
+  const d = await db();
+  const tx = d.transaction("blocks", "readwrite");
+  for (const id of ids) {
+    const b = await tx.store.get(id);
+    if (!b) continue;
+    b.clusterId = clusterId;
+    await tx.store.put(b);
+  }
+  await tx.done;
 }
 
 /** Bump strength + recency on the blocks that were just recalled (spaced-repetition style). */
