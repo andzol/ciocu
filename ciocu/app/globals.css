@@ -260,17 +260,31 @@ body:has(.doc-shell) {
   background: var(--cyan);
   box-shadow: 0 0 10px var(--cyan);
 }
+/* Test-only readout: its own box under the status pill, so the raw numbers never stretch the
+   status into one very long line. Two stacked rows — detection, then how she feels. */
+.presence-devbox {
+  position: absolute;
+  top: calc(100% + 48px); /* clears the status pill (8px gap + its ~34px height) */
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .presence-debug {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
-/* Her emotional state, on its own line under the status — sits beside the raw detection numbers so
-   you can see feeling and eye state agree. */
+/* How she feels, right under the detection numbers, so you can see the two agree. */
 .presence-feel {
-  display: block;
-  width: 100%;
-  margin-top: 3px;
   color: var(--cyan);
   font-variant-numeric: tabular-nums;
   opacity: 0.75;

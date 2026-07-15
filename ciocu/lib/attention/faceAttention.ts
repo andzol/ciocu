@@ -24,9 +24,18 @@ const DETECT_INTERVAL_MS = 66; // ~15 detections/sec — plenty for gating, easy
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
 const NOSE_TIP = 1;
-// A face only drifts across a fraction of the frame in normal use, so amplify it — otherwise
-// leaning aside would barely move her pupils. Clamped, so big movements just peg the look.
-const FACE_GAIN = 2.2;
+// Gain on the DEVIATION (below), not on the raw coordinate — a lean is only a fraction of the
+// frame, so without this her pupils would barely twitch. Clamped, so stepping out of shot just pegs.
+const FACE_GAIN = 4.0;
+// Where your face normally sits, learned slowly.
+//
+// This isn't a nicety. Mapping the raw frame position straight to gaze assumes you sit dead centre
+// of the camera — nobody does. A webcam above the screen puts a resting face well down the frame,
+// which pinned gaze y at 1.00 and left her staring at the floor. Measuring deviation from where you
+// *usually* are makes it self-calibrating for any camera placement or seat. The time constant is
+// deliberately long (~a minute at 30fps): quick enough to re-settle if you move seat, far too slow
+// to chase you while you lean — which would cancel out the very movement we're trying to follow.
+const BASE_EASE = 0.0015;
 
 const YAW_LIMIT = 0.40; // rad (~23°) left/right head turn still counts as "facing me"
 const PITCH_LIMIT = 0.34; // rad (~19°) up/down
@@ -84,6 +93,9 @@ export async function startAttention(cb: AttentionCallbacks): Promise<AttentionH
   let analyser: AnalyserNode | null = null;
   let vadBuf: Float32Array<ArrayBuffer> | null = null;
   let landmarker: FaceLandmarker | null = null;
+  // Learned resting position of the face in frame; -1 until the first sighting (see BASE_EASE).
+  let baseX = -1;
+  let baseY = -1;
   let rafId = 0;
   let lastDetect = 0;
 
@@ -203,10 +215,15 @@ export async function startAttention(cb: AttentionCallbacks): Promise<AttentionH
           // -1..1, amplify, and flip x out of camera-space into her point of view.
           const nose = res.faceLandmarks?.[0]?.[NOSE_TIP];
           if (nose) {
-            const nx = (nose.x - 0.5) * 2;
-            const ny = (nose.y - 0.5) * 2;
-            gazeX = clamp(-nx * FACE_GAIN, -1, 1);
-            gazeY = clamp(ny * FACE_GAIN, -1, 1);
+            if (baseX < 0) {
+              baseX = nose.x; // first sighting defines "where you are" — no drift-in from centre
+              baseY = nose.y;
+            } else {
+              baseX += (nose.x - baseX) * BASE_EASE;
+              baseY += (nose.y - baseY) * BASE_EASE;
+            }
+            gazeX = clamp(-(nose.x - baseX) * FACE_GAIN, -1, 1); // flipped out of camera-space
+            gazeY = clamp((nose.y - baseY) * FACE_GAIN, -1, 1);
             cb.onGaze?.(gazeX, gazeY);
           }
         } else {

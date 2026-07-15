@@ -127,18 +127,24 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
         >
           <span className="presence-status-dot" aria-hidden="true" />
           {attending ? "Eye contact — she sees you" : "Looking for you…"}
-          {debugOn && debug && (
+        </span>
+      )}
+
+      {/* The raw numbers get their own box under the status — inline they made one very long line. */}
+      {active && debugOn && (debug || feel) && (
+        <div className="presence-devbox">
+          {debug && (
             <span className="presence-debug">
-              {` · faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)} · gaze ${debug.gazeX.toFixed(2)},${debug.gazeY.toFixed(2)}`}
+              {`faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)} · gaze ${debug.gazeX.toFixed(2)},${debug.gazeY.toFixed(2)}`}
             </span>
           )}
           {/* How she feels vs. what the eyes are doing — the two should always agree. */}
-          {debugOn && feel && (
+          {feel && (
             <span className="presence-feel">
               {`feels · valence ${feel.moodV >= 0 ? "+" : ""}${feel.moodV.toFixed(2)} · arousal ${feel.moodA.toFixed(2)} · tears ${feel.tear.toFixed(2)} · eyes "${feel.state}"`}
             </span>
           )}
-        </span>
+        </div>
       )}
 
       <button
