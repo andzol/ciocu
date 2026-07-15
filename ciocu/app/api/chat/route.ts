@@ -3,6 +3,7 @@
 
 import type { NextRequest } from "next/server";
 import { retrieve } from "@/lib/knowledge/llamacloud";
+import { kvIncr } from "@/lib/stats/kv";
 
 export const runtime = "nodejs";
 
@@ -73,6 +74,9 @@ export async function POST(req: NextRequest) {
     const detail = await upstream.text().catch(() => "");
     return new Response(`Upstream error (${upstream.status}): ${detail}`, { status: 502 });
   }
+
+  // Global social-proof counter: one more message heard (best-effort, non-blocking).
+  void kvIncr("stats:messages");
 
   // Re-stream: parse OpenAI-style SSE from OpenRouter, emit only the text deltas.
   const stream = new ReadableStream<Uint8Array>({

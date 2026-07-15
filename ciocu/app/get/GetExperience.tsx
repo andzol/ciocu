@@ -15,6 +15,7 @@ import {
   Sparkle,
 } from "@phosphor-icons/react";
 import EyeStage from "@/components/EyeStage";
+import SocialProof from "./SocialProof";
 import styles from "./get.module.css";
 
 const APP_URL = "https://ciocu.app";
@@ -113,6 +114,7 @@ export default function GetExperience() {
             </a>
           </div>
           <p className={styles.noCard}><Check weight="bold" /> Free to meet. No card required.</p>
+          <SocialProof />
         </div>
 
         <div className={styles.presence} aria-label="Ciocu's expressive eyes">

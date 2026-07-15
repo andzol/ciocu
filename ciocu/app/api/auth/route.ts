@@ -11,6 +11,7 @@ import {
   createSessionToken,
   sessionCookieHeader,
 } from "@/lib/auth/session-cookie";
+import { kvIncr, kvSetNx } from "@/lib/stats/kv";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,11 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return Response.json({ error: "invalid token" }, { status: 401 });
   }
+
+  // Count unique registered people once (first time we see this sub) — best-effort, non-blocking.
+  void kvSetNx(`stats:seen:${user.sub}`).then((isNew) => {
+    if (isNew) return kvIncr("stats:users");
+  });
 
   const headers = new Headers({ "Content-Type": "application/json" });
   const token = createSessionToken(user.email, user.sub);

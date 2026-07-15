@@ -94,6 +94,12 @@
 .noCard { display: flex; gap: 8px; align-items: center; margin: 17px 0 0 17px; color: #668086; font-size: 11px; }
 .noCard svg { color: var(--cyan); width: 12px; }
 
+/* Social proof — real global counters (see SocialProof.tsx / /api/stats). */
+.socialProof { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 34px; padding: 12px 20px; border: 1px solid var(--line); border-radius: 999px; background: rgba(5, 19, 22, .55); backdrop-filter: blur(10px); }
+.spItem { color: #8aa3a8; font-size: 13px; letter-spacing: .01em; }
+.spItem b { color: #dff9fa; font-weight: 700; font-variant-numeric: tabular-nums; }
+.spDot { width: 4px; height: 4px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
 .presence { position: relative; height: 600px; display: grid; place-items: center; }
 .eyeAura { position: absolute; width: 85%; aspect-ratio: 1.3; border-radius: 50%; background: rgba(45, 224, 246, .07); filter: blur(65px); animation: breathe 5s ease-in-out infinite; }
 .orbitOne, .orbitTwo { position: absolute; width: 72%; aspect-ratio: 1; border: 1px solid rgba(97,239,255,.13); border-radius: 50%; transform: rotate(18deg); }
