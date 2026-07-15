@@ -74,9 +74,13 @@ export interface EyeEngineHandle {
    *  mirrors the camera). Outranks the pointer while it's fresh: if she can see you, she looks at
    *  you, not at the mouse. Goes stale on its own once the face is gone. */
   setGaze: (x: number, y: number) => void;
+  /** How the *person* is feeling right now (valence -1..1, arousal 0..1) — what she just read off
+   *  you. Her eyes well for you, so this is what brings tears; her own mood deliberately stays
+   *  steady (see the tear comment in the engine). Fades on its own between exchanges. */
+  setEmpathy: (valence: number, arousal: number) => void;
   /** What she's actually feeling and showing right now — the engine's own eased values, not the
    *  targets, so it's the truth the eyes are rendering. For the ?debug readout. */
-  getDebug: () => { state: StateName; moodV: number; moodA: number; tear: number };
+  getDebug: () => { state: StateName; moodV: number; moodA: number; tear: number; empV: number };
   destroy: () => void;
 }
 
@@ -198,17 +202,19 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   // valence -1..1 (down↔warm), arousal 0..1 (calm↔lit-up). Biases shape/glow/colour on top of
   // whatever discrete preset is active. Neutral mood (0,0) leaves the preset look untouched.
   let moodV = 0, moodA = 0, moodVTarget = 0, moodATarget = 0;
-  // Tears — welling 0..1. Joy and sorrow both bring them, so this keys off the *strength* of
-  // feeling, not sadness alone.
+  // Tears — welling 0..1, driven by what YOU feel, not by what she feels. She wells up *for* you.
   //
-  // The thresholds are asymmetric, and deliberately so. The dog↔owner rule (lib/mood/mood.ts) shares
-  // joy in full but damps sorrow to 0.55× yours — she's concerned, not devastated — and only
-  // approaches it asymptotically, so in practice her valence lives in roughly +0.9 / −0.5. A
-  // symmetric threshold would make sorrow tears literally unreachable. Each side is instead
-  // normalised to the range that side can actually reach.
-  let tear = 0;
-  const TEAR_JOY_AT = 0.58, TEAR_JOY_FULL = 0.92;
-  const TEAR_SORROW_AT = 0.30, TEAR_SORROW_FULL = 0.52;
+  // This is deliberate, and it's the only way the design works. The dog↔owner rule keeps her the
+  // steady one: it damps sorrow to 0.55× yours from a warm +0.1 baseline, so telling her about a
+  // death lands her at about −0.12 — emotionally neutral. Keying tears off her own valence meant
+  // she could never cry for you, only with joy. Keying them off yours preserves "concerned, not
+  // devastated" in her face while letting her be visibly moved by what you're carrying.
+  //
+  // empV/empA hold the last read of you and fade over ~30s, so the feeling leaves her hands once
+  // you've moved on rather than snapping off the moment the message ends.
+  let tear = 0, empV = 0, empA = 0;
+  const EMP_FADE = 0.0004; // ≈30s half-life at 60fps
+  const TEAR_AT = 0.30, TEAR_FULL = 0.85; // on the *load* below, not raw valence
   let gtStore = 0;
   const t0 = performance.now();
   let raf = 0;
@@ -325,13 +331,13 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     // (a muted, tender read); a small hue nudge warms/cools. Composed with the preset's hue/sat.
     moodV = lerp(moodV, moodVTarget, 0.02);
     moodA = lerp(moodA, moodATarget, 0.03);
-    const rise =
-      moodV >= 0
-        ? (moodV - TEAR_JOY_AT) / (TEAR_JOY_FULL - TEAR_JOY_AT)
-        : (-moodV - TEAR_SORROW_AT) / (TEAR_SORROW_FULL - TEAR_SORROW_AT);
-    // Arousal deepens them without gating them: her sorrow is a low-arousal state by design, so a
-    // quiet grief still wells — just more softly than a bright, overwhelmed joy.
-    const tearTgt = clamp(rise, 0, 1) * (0.6 + 0.4 * moodA);
+    // What you're carrying slowly leaves her hands if you move on.
+    empV = lerp(empV, 0, EMP_FADE);
+    empA = lerp(empA, 0, EMP_FADE);
+    // How much feeling you're actually in — either direction. Arousal deepens it without gating it,
+    // so a quiet, flattened grief still counts; it just wells more softly than an overwhelmed joy.
+    const load = Math.abs(empV) * (0.55 + 0.45 * empA);
+    const tearTgt = clamp((load - TEAR_AT) / (TEAR_FULL - TEAR_AT), 0, 1);
     tear = lerp(tear, tearTgt, 0.02); // slow on purpose — they well up, they don't switch on
     const satMul = 1 - Math.max(0, -moodV) * 0.5;
     eyesG.style.filter = `hue-rotate(${(cur.hue + moodV * 8).toFixed(1)}deg) saturate(${(cur.sat * satMul).toFixed(3)})`;
@@ -431,8 +437,12 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
       face.y = clamp(y, -1, 1);
       faceT = performance.now(); // freshness stamp — the frame loop lets this lapse on its own
     },
+    setEmpathy(valence: number, arousal: number) {
+      empV = clamp(valence, -1, 1);
+      empA = clamp(arousal, 0, 1);
+    },
     getDebug() {
-      return { state: curState, moodV, moodA, tear };
+      return { state: curState, moodV, moodA, tear, empV };
     },
     destroy() {
       cancelAnimationFrame(raf);

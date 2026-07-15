@@ -107,6 +107,9 @@ export default function Home() {
         });
         if (!res.ok) return;
         const emotion = await res.json();
+        // Her eyes well for YOU, not for herself — the dog↔owner rule keeps her own valence steady
+        // on purpose, so this is what brings tears (see the engine).
+        engineRef.current?.setEmpathy(emotion.valence ?? 0, emotion.arousal ?? 0);
         moodRef.current = absorb(moodRef.current, emotion);
         saveBond(moodRef.current.bond);
         pushMood();
@@ -217,7 +220,13 @@ export default function Home() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: llmMessages, knowledge: activeKnowledge }),
+          // Her mood goes with it: the emotion layer drove only her eyes, so her words had no idea
+          // she was feeling anything — which is exactly why she read as caring-in-theory only.
+          body: JSON.stringify({
+            messages: llmMessages,
+            knowledge: activeKnowledge,
+            mood: moodRef.current,
+          }),
         });
         if (!res.ok || !res.body) throw new Error("bad response");
 

@@ -26,7 +26,13 @@ interface PresenceProps {
   onGaze?: (x: number, y: number) => void;
   /** Reads her actual feeling + eye state out of the engine, for the ?debug line. Polled rather
    *  than pushed, so the eye engine's per-frame values never re-render the app. */
-  getEyeDebug?: () => { state: string; moodV: number; moodA: number; tear: number } | null;
+  getEyeDebug?: () => {
+    state: string;
+    moodV: number;
+    moodA: number;
+    tear: number;
+    empV: number;
+  } | null;
 }
 
 /**
@@ -46,7 +52,13 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
   //   typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug")
   const [debugOn] = useState(true);
   const [debug, setDebug] = useState<DebugInfo | null>(null);
-  const [feel, setFeel] = useState<{ state: string; moodV: number; moodA: number; tear: number } | null>(null);
+  const [feel, setFeel] = useState<{
+    state: string;
+    moodV: number;
+    moodA: number;
+    tear: number;
+    empV: number;
+  } | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
 
   // Poll her feeling for the debug line. 5/s is plenty to watch mood drift and tears well up, and
@@ -138,10 +150,11 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
               {`faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)} · gaze ${debug.gazeX.toFixed(2)},${debug.gazeY.toFixed(2)}`}
             </span>
           )}
-          {/* How she feels vs. what the eyes are doing — the two should always agree. */}
+          {/* How she feels vs. what the eyes are doing — the two should always agree. `reads you` is
+              what she picked up from your last message, and it's what actually brings the tears. */}
           {feel && (
             <span className="presence-feel">
-              {`feels · valence ${feel.moodV >= 0 ? "+" : ""}${feel.moodV.toFixed(2)} · arousal ${feel.moodA.toFixed(2)} · tears ${feel.tear.toFixed(2)} · eyes "${feel.state}"`}
+              {`feels · valence ${feel.moodV >= 0 ? "+" : ""}${feel.moodV.toFixed(2)} · arousal ${feel.moodA.toFixed(2)} · reads you ${feel.empV >= 0 ? "+" : ""}${feel.empV.toFixed(2)} · tears ${feel.tear.toFixed(2)} · eyes "${feel.state}"`}
             </span>
           )}
         </div>
