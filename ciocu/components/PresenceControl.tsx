@@ -41,9 +41,10 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
 ) {
   const [state, setState] = useState<UIState>("off");
   const [attending, setAttending] = useState(false);
-  const [debugOn] = useState(
-    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
-  );
+  // TEMPORARY: ciocu.app is a test environment right now, so the detection + feeling readout is on
+  // for everyone — no ?debug needed. Before real users arrive, put the gate back:
+  //   typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug")
+  const [debugOn] = useState(true);
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const [feel, setFeel] = useState<{ state: string; moodV: number; moodA: number; tear: number } | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
