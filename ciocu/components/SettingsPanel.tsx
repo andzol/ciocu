@@ -7,6 +7,7 @@ import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
 import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
 import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
+import { STT_LANGUAGES, setVoiceLang, setVoiceProvider, useVoicePrefs } from "@/lib/voice/prefs";
 
 import { loadBases, type KnowledgeBase } from "@/lib/knowledge/bases";
 
@@ -48,6 +49,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const user = useGoogleUser();
   const usage = useUsage();
   const tier = usage?.tier;
+  const voice = useVoicePrefs();
   const enabledKnowledge = useEnabledKnowledge();
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   // Which bases have a description card available (id → its URL), and the one being viewed.
@@ -236,6 +238,80 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </>
             )}
           </section>
+
+          {/* ── Voice (subscribers only — free users are on Google either way) ─────── */}
+          {usage && usage.tier !== "none" && (
+            <section className="settings-section">
+              <h3 className="settings-heading">Voice</h3>
+              <p className="settings-muted settings-usage-approx">
+                How your speech becomes text. She only listens while she can see you, whichever you
+                pick.
+              </p>
+              <ul className="kb-list">
+                <li className="kb-row">
+                  <label className="kb-item">
+                    <input
+                      type="radio"
+                      name="stt-provider"
+                      className="kb-check kb-radio"
+                      checked={voice.provider === "soniox"}
+                      onChange={() => setVoiceProvider("soniox")}
+                    />
+                    <span className="kb-name">
+                      Soniox
+                      <Lightning
+                        size={14}
+                        weight="fill"
+                        className="energy-icon"
+                        aria-label="Uses energy while you speak"
+                      />
+                    </span>
+                  </label>
+                </li>
+                {voice.provider === "soniox" && (
+                  <li className="stt-note">Real-time and more accurate. Detects your language on its own.</li>
+                )}
+
+                <li className="kb-row">
+                  <label className="kb-item">
+                    <input
+                      type="radio"
+                      name="stt-provider"
+                      className="kb-check kb-radio"
+                      checked={voice.provider === "google"}
+                      onChange={() => setVoiceProvider("google")}
+                    />
+                    <span className="kb-name">
+                      Google
+                      <span className="kb-free" title="Never uses your energy">
+                        free
+                      </span>
+                    </span>
+                  </label>
+                  {voice.provider === "google" && (
+                    <select
+                      className="stt-lang"
+                      aria-label="Language Google listens for"
+                      value={voice.lang}
+                      onChange={(e) => setVoiceLang(e.target.value)}
+                    >
+                      {STT_LANGUAGES.map((l) => (
+                        <option key={l.code || "auto"} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </li>
+                {voice.provider === "google" && (
+                  <li className="stt-note">
+                    Your browser&apos;s own recognition — costs no energy, but it has to be told which
+                    language to expect, and works best in Chrome.
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
 
           {/* ── Knowledge (subscribers only — bases run on your monthly energy) ─────── */}
           {usage && usage.tier !== "none" && (

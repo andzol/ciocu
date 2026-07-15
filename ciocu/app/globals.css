@@ -618,6 +618,43 @@ a.menu-item {
   align-items: center;
   gap: 5px;
 }
+/* Radio variant of .kb-check (provider choice) — round, with a dot instead of a tick. */
+.kb-radio {
+  border-radius: 50%;
+}
+.kb-radio:checked::after {
+  width: 7px;
+  height: 7px;
+  margin-top: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #04252c;
+  transform: none;
+}
+/* Language picker beside the Google option. */
+.stt-lang {
+  flex: none;
+  max-width: 11.5em;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.stt-lang:hover {
+  border-color: var(--border-cyan);
+}
+/* One-line explanation under whichever provider is selected. */
+.stt-note {
+  margin: -2px 0 6px 41px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
 /* "free" mark: this base never draws energy (support). Quiet — it replaces the lightning. */
 .kb-free {
   flex: none;

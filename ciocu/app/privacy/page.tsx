@@ -84,11 +84,21 @@ export default function PrivacyPage() {
         <h3>Your voice</h3>
         <p>
           Voice input is transcribed by a speech-recognition service, and only while Ciocu can see
-          that you are present — look away and transcription stops. On the free plan, transcription
-          uses your browser's built-in recognition; in Chrome this means audio goes to Google. On a
-          paid plan, audio is streamed to Soniox for real-time transcription. Audio is used to
-          produce text and is not retained by us.
+          that you are present — look away and transcription stops. Which service receives your
+          audio depends on your plan, and on your own choice:
         </p>
+        <ul>
+          <li>
+            <strong>Free plan</strong> — your browser&apos;s built-in recognition. In Chrome, that
+            means the audio goes to Google.
+          </li>
+          <li>
+            <strong>Paid plans</strong> — Soniox by default, for real-time transcription. You can
+            switch to your browser&apos;s own recognition under Settings → Voice, which sends the
+            audio to Google instead. The setting decides which of the two hears you.
+          </li>
+        </ul>
+        <p>Audio is used to produce text, and is not retained by us.</p>
 
         <h3>Your camera</h3>
         <p>
@@ -149,12 +159,12 @@ export default function PrivacyPage() {
             </tr>
             <tr>
               <td>Google</td>
-              <td>Sign-in identity; audio on the free plan in Chrome</td>
+              <td>Sign-in identity; audio whenever browser recognition is in use</td>
               <td>Authentication; browser speech recognition</td>
             </tr>
             <tr>
               <td>Soniox</td>
-              <td>Audio, for subscribers</td>
+              <td>Audio, when Soniox is your chosen voice provider</td>
               <td>Real-time speech-to-text</td>
             </tr>
             <tr>

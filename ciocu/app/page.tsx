@@ -16,6 +16,7 @@ import { CIOCU_SYSTEM } from "@/lib/llm/persona";
 import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/lib/memory/store";
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { createSonioxVoice } from "@/lib/voice/soniox";
+import { useVoicePrefs } from "@/lib/voice/prefs";
 import { useGoogleUser } from "@/lib/auth/session";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
@@ -63,6 +64,9 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const user = useGoogleUser();
+  // Read as primitives, so the voice effect re-runs on an actual change of choice rather than on
+  // every re-render (the prefs object is a fresh reference each time).
+  const { provider: voiceProvider, lang: voiceLang } = useVoicePrefs();
 
   // Localize Ciocu's caption lines to the browser language (client-only, so SSR stays English and
   // there's no hydration mismatch). Only swap the greeting if it's still the untouched default.
@@ -307,16 +311,18 @@ export default function Home() {
     };
   }, [user]);
 
-  // Voice input, driven by attention below. Everyone gets free Web Speech; a signed-in paying
-  // user is transparently upgraded to Soniox (server-gated in /api/stt-token — see soniox.ts).
+  // Voice input, driven by attention below. Everyone gets free Web Speech; a signed-in paying user
+  // is upgraded to Soniox unless they've chosen Google in Settings (server still gates Soniox in
+  // /api/stt-token, so the local preference can't grant anything — see soniox.ts).
   useEffect(() => {
     let cancelled = false;
-    const web = createVoice({ onFinal: (t) => sendRef.current(t) });
+    // Google needs to be told the language; "" means follow the browser. Soniox ignores this.
+    const web = createVoice({ lang: voiceLang || undefined, onFinal: (t) => sendRef.current(t) });
     voiceRef.current = web;
     if (attendingRef.current && web.supported) web.start();
 
     let soniox: VoiceHandle | null = null;
-    if (user) {
+    if (user && voiceProvider === "soniox") {
       (async () => {
         const s = await createSonioxVoice({
           onFinal: (t) => sendRef.current(t),
@@ -340,7 +346,7 @@ export default function Home() {
       web.stop();
       soniox?.stop();
     };
-  }, [user]);
+  }, [user, voiceProvider, voiceLang]);
 
   // Eye contact drives presence AND gates voice: she only listens (mic) while she sees you.
   const handleAttention = useCallback((next: boolean) => {
