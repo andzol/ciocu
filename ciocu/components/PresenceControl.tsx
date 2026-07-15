@@ -10,6 +10,8 @@ interface DebugInfo {
   yaw: number;
   pitch: number;
   attending: boolean;
+  gazeX: number;
+  gazeY: number;
 }
 
 export interface PresenceHandle {
@@ -20,6 +22,11 @@ export interface PresenceHandle {
 interface PresenceProps {
   onAttention: (attending: boolean) => void;
   onVoice: (level: number) => void;
+  /** Where the person is, -1..1 per axis — drives her eyes to follow you (see faceAttention). */
+  onGaze?: (x: number, y: number) => void;
+  /** Reads her actual feeling + eye state out of the engine, for the ?debug line. Polled rather
+   *  than pushed, so the eye engine's per-frame values never re-render the app. */
+  getEyeDebug?: () => { state: string; moodV: number; moodA: number; tear: number } | null;
 }
 
 /**
@@ -29,7 +36,7 @@ interface PresenceProps {
  * Exposes enable() via ref so the first-visit onboarding can turn it on.
  */
 const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function PresenceControl(
-  { onAttention, onVoice },
+  { onAttention, onVoice, onGaze, getEyeDebug },
   ref,
 ) {
   const [state, setState] = useState<UIState>("off");
@@ -38,7 +45,16 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
     () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"),
   );
   const [debug, setDebug] = useState<DebugInfo | null>(null);
+  const [feel, setFeel] = useState<{ state: string; moodV: number; moodA: number; tear: number } | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
+
+  // Poll her feeling for the debug line. 5/s is plenty to watch mood drift and tears well up, and
+  // it keeps the engine's 60fps values out of React entirely.
+  useEffect(() => {
+    if (!debugOn || !getEyeDebug) return;
+    const id = window.setInterval(() => setFeel(getEyeDebug()), 200);
+    return () => window.clearInterval(id);
+  }, [debugOn, getEyeDebug]);
 
   useEffect(() => {
     return () => handleRef.current?.stop();
@@ -55,6 +71,7 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
           onAttention(a);
         },
         onVoice,
+        onGaze,
         onStatus: (s) => {
           if (s === "running") setState("on");
           else if (s === "denied") setState("denied");
@@ -111,7 +128,13 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
           {attending ? "Eye contact — she sees you" : "Looking for you…"}
           {debugOn && debug && (
             <span className="presence-debug">
-              {` · faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)}`}
+              {` · faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)} · gaze ${debug.gazeX.toFixed(2)},${debug.gazeY.toFixed(2)}`}
+            </span>
+          )}
+          {/* How she feels vs. what the eyes are doing — the two should always agree. */}
+          {debugOn && feel && (
+            <span className="presence-feel">
+              {`feels · valence ${feel.moodV >= 0 ? "+" : ""}${feel.moodV.toFixed(2)} · arousal ${feel.moodA.toFixed(2)} · tears ${feel.tear.toFixed(2)} · eyes "${feel.state}"`}
             </span>
           )}
         </span>

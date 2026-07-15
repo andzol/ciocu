@@ -14,6 +14,20 @@ const MODEL_URL =
 
 // Tuning
 const DETECT_INTERVAL_MS = 66; // ~15 detections/sec — plenty for gating, easy on the CPU
+// Her eyes should follow where you actually are, so we read the nose tip's position in the frame
+// (landmark 1 of MediaPipe's mesh) rather than the head's rotation — moving across the camera is a
+// translation, not a turn.
+//
+// MIRROR: the raw camera image is not mirrored, so it sees you like another person would — step to
+// your right and you travel toward the image's LEFT. For her to look *at* you rather than away, x is
+// flipped. Y needs no flip: move up and you rise in the frame, and the engine's +y is already down.
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+
+const NOSE_TIP = 1;
+// A face only drifts across a fraction of the frame in normal use, so amplify it — otherwise
+// leaning aside would barely move her pupils. Clamped, so big movements just peg the look.
+const FACE_GAIN = 2.2;
+
 const YAW_LIMIT = 0.40; // rad (~23°) left/right head turn still counts as "facing me"
 const PITCH_LIMIT = 0.34; // rad (~19°) up/down
 const ON_DEBOUNCE_MS = 250; // must attend this long before she switches to listening
@@ -31,8 +45,20 @@ export type AttentionStatus =
 export interface AttentionCallbacks {
   onAttention: (attending: boolean) => void;
   onVoice: (level: number) => void; // 0..1, only meaningful while attending
+  /**
+   * Where you are, so her eyes can follow you: -1..1 on each axis, already in *her* frame of
+   * reference (see FACE_GAIN / the mirror note below). Fires while a face is visible.
+   */
+  onGaze?: (x: number, y: number) => void;
   onStatus: (status: AttentionStatus, detail?: string) => void;
-  onDebug?: (info: { faces: number; yaw: number; pitch: number; attending: boolean }) => void;
+  onDebug?: (info: {
+    faces: number;
+    yaw: number;
+    pitch: number;
+    attending: boolean;
+    gazeX: number; // the same value handed to onGaze — visible via ?debug so the mirror is checkable
+    gazeY: number;
+  }) => void;
 }
 
 export interface AttentionHandle {
@@ -164,6 +190,8 @@ export async function startAttention(cb: AttentionCallbacks): Promise<AttentionH
       let faces = 0;
       let yaw = 0;
       let pitch = 0;
+      let gazeX = 0;
+      let gazeY = 0;
       try {
         const res = landmarker.detectForVideo(video, now);
         faces = res.faceLandmarks?.length ?? 0;
@@ -171,6 +199,16 @@ export async function startAttention(cb: AttentionCallbacks): Promise<AttentionH
         if (faces > 0 && mtx) {
           ({ yaw, pitch } = headAngles(Array.from(mtx)));
           rawAttending = Math.abs(yaw) < YAW_LIMIT && Math.abs(pitch) < PITCH_LIMIT;
+          // Follow where you are. Landmarks are normalized 0..1 across the frame; recentre to
+          // -1..1, amplify, and flip x out of camera-space into her point of view.
+          const nose = res.faceLandmarks?.[0]?.[NOSE_TIP];
+          if (nose) {
+            const nx = (nose.x - 0.5) * 2;
+            const ny = (nose.y - 0.5) * 2;
+            gazeX = clamp(-nx * FACE_GAIN, -1, 1);
+            gazeY = clamp(ny * FACE_GAIN, -1, 1);
+            cb.onGaze?.(gazeX, gazeY);
+          }
         } else {
           rawAttending = false;
         }
@@ -189,7 +227,7 @@ export async function startAttention(cb: AttentionCallbacks): Promise<AttentionH
           sinceChange = 0;
         }
       }
-      cb.onDebug?.({ faces, yaw, pitch, attending });
+      cb.onDebug?.({ faces, yaw, pitch, attending, gazeX, gazeY });
     }
 
     if (attending && analyser) cb.onVoice(readVoice());

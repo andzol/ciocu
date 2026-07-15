@@ -265,6 +265,16 @@ body:has(.doc-shell) {
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
+/* Her emotional state, on its own line under the status — sits beside the raw detection numbers so
+   you can see feeling and eye state agree. */
+.presence-feel {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
 
 /* ── Hamburger menu ───────────────────────────────────────────────────────────── */
 .menu-root {

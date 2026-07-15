@@ -42,6 +42,9 @@ const DEFS = `
   <linearGradient id="sheen" x1="0" y1="0" x2="0.7" y2="1">
     <stop offset="0%" stop-color="#ffffff" stop-opacity=".5"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
   </linearGradient>
+  <linearGradient id="tearG" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#dff8ff" stop-opacity=".55"/><stop offset="45%" stop-color="#9adcff" stop-opacity=".8"/><stop offset="100%" stop-color="#5cc4ff" stop-opacity=".95"/>
+  </linearGradient>
   <filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
   <filter id="bloom" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="20"/></filter>
   <filter id="spark" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.4"/></filter>
@@ -52,6 +55,7 @@ interface BokP { ang: number; rad: number; rrad: number; spd: number; ph: number
 
 interface Eye {
   side: "L" | "R"; sign: number; g: SVGElement; clipPath: SVGElement; bloom: SVGElement;
+  tearPool: SVGElement; tearLine: SVGElement;
   body: SVGElement; limbal: SVGElement; rim: SVGElement; pupil: SVGElement; refl: SVGElement;
   warmRefl: SVGElement; cat1: SVGElement; cat1b: SVGElement; cat2: SVGElement; cat3: SVGElement;
   star: SVGElement; sheen: SVGElement;
@@ -66,6 +70,13 @@ export interface EyeEngineHandle {
   /** Continuous mood baseline (mental state). valence -1..1, arousal 0..1. Biases the resting
    *  expression on top of the discrete state — this is the emotion layer (see ciocu-memory-emotion). */
   setMood: (valence: number, arousal: number) => void;
+  /** Where the person actually is, -1..1 per axis, in her frame of reference (the attention layer
+   *  mirrors the camera). Outranks the pointer while it's fresh: if she can see you, she looks at
+   *  you, not at the mouse. Goes stale on its own once the face is gone. */
+  setGaze: (x: number, y: number) => void;
+  /** What she's actually feeling and showing right now — the engine's own eased values, not the
+   *  targets, so it's the truth the eyes are rendering. For the ?debug readout. */
+  getDebug: () => { state: StateName; moodV: number; moodA: number; tear: number };
   destroy: () => void;
 }
 
@@ -147,12 +158,18 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     const bok = el("circle", { r: rnd(9, 14), fill: "#cffff8", filter: "url(#bloom)", opacity: ".22" }) as SVGElement & { _p: BokP };
     bok._p = { ang: rnd(0, 6.28), rad: HALFW * 0.5, rrad: HALFH * 0.5, spd: 0.4, ph: rnd(0, 6.28) };
 
-    inner.append(topShade, ring1, ring2, rim, pupil, refl, warmRefl, sheen, bok, cat2, cat3, cat1b, cat1, star, ...sparks);
+    // Tears — a waterline that wells up along the lower lid when feeling runs strong either way.
+    // Lives inside `inner`, so the eye's clip path shapes it for free: it follows her lids, thins
+    // into the smile-crescent, and vanishes as she blinks, without any extra maths.
+    const tearPool = el("ellipse", { cx: 0, cy: HALFH * 1.6, rx: HALFW * 1.05, ry: HALFH * 0.62, fill: "url(#tearG)", opacity: "0" });
+    const tearLine = el("ellipse", { cx: 0, cy: HALFH * 0.98, rx: HALFW * 0.98, ry: 3.5, fill: "#f2feff", opacity: "0", filter: "url(#soft)" });
+
+    inner.append(topShade, ring1, ring2, rim, pupil, refl, warmRefl, sheen, bok, cat2, cat3, cat1b, cat1, star, ...sparks, tearPool, tearLine);
     const limbal = el("path", { fill: "none", stroke: "#0b5161", "stroke-width": 6, opacity: ".42" });
 
     g.append(bloom, body, inner, limbal);
     eyesG.appendChild(g);
-    return { side, sign, g, clipPath, bloom, body, limbal, rim, pupil, refl, warmRefl, cat1, cat1b, cat2, cat3, star, sheen, topShade, ring1, ring2, sparks, bok };
+    return { side, sign, g, clipPath, bloom, body, limbal, rim, pupil, refl, warmRefl, cat1, cat1b, cat2, cat3, star, sheen, topShade, ring1, ring2, sparks, bok, tearPool, tearLine };
   }
 
   const eyeL = buildEye("L"), eyeR = buildEye("R");
@@ -162,6 +179,11 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   let tgt: Preset = PRESETS.neutral;
   const curGaze = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
   let mouseActive = false, mouseT = 0;
+  // Where the person is (from the camera). Kept separate from `mouse` so a real face can outrank a
+  // pointer that's just parked somewhere, and so it can lapse on its own when she loses sight of you.
+  const face = { x: 0, y: 0 };
+  let faceT = 0;
+  const FACE_TTL = 1200; // ms — attention refreshes every frame, so this only elapses once you're gone
   const sacc = { x: 0, y: 0 }; let saccTgt = { x: 0, y: 0 }, nextSacc = 0;
   const micro = { x: 0, y: 0 }; let microTgt = { x: 0, y: 0 }, nextMicro = 0;
   const head = { x: 0, y: 0 }; let headTgt = { x: 0, y: 0 }, nextHead = 0;
@@ -176,6 +198,17 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
   // valence -1..1 (down↔warm), arousal 0..1 (calm↔lit-up). Biases shape/glow/colour on top of
   // whatever discrete preset is active. Neutral mood (0,0) leaves the preset look untouched.
   let moodV = 0, moodA = 0, moodVTarget = 0, moodATarget = 0;
+  // Tears — welling 0..1. Joy and sorrow both bring them, so this keys off the *strength* of
+  // feeling, not sadness alone.
+  //
+  // The thresholds are asymmetric, and deliberately so. The dog↔owner rule (lib/mood/mood.ts) shares
+  // joy in full but damps sorrow to 0.55× yours — she's concerned, not devastated — and only
+  // approaches it asymptotically, so in practice her valence lives in roughly +0.9 / −0.5. A
+  // symmetric threshold would make sorrow tears literally unreachable. Each side is instead
+  // normalised to the range that side can actually reach.
+  let tear = 0;
+  const TEAR_JOY_AT = 0.58, TEAR_JOY_FULL = 0.92;
+  const TEAR_SORROW_AT = 0.30, TEAR_SORROW_FULL = 0.52;
   let gtStore = 0;
   const t0 = performance.now();
   let raf = 0;
@@ -192,8 +225,11 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     else if (kind === "pulse") pulseOn = true;
   }
 
+  let curState: StateName = "neutral"; // tracked for getDebug() — see the handle
+
   function setState(name: StateName) {
     if (!PRESETS[name]) return;
+    curState = name;
     tgt = PRESETS[name];
     dyn.converge = 0; dyn.swoon = 0;
     if (tgt.enter) runRoutine(tgt.enter);
@@ -244,6 +280,15 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     E.cat1b.setAttribute("transform", `translate(${px * 0.9} ${py * 0.9}) rotate(${c1rot} ${c1x} ${c1y})`);
     E.cat2.setAttribute("transform", `translate(${px * 0.86} ${py * 0.86})`);
     E.cat3.setAttribute("transform", `translate(${px * 0.82} ${py * 0.82})`);
+
+    // Tears rise from below the lid into view. The clip does the shaping; all we do is move the
+    // pool up and light its surface. A touch of sway keeps the surface alive rather than pasted on.
+    const poolY = lerp(HALFH * 1.62, HALFH * 0.52, tear);
+    const sway = Math.sin(t * 1.7 + E.sign) * 2.2 * tear;
+    E.tearPool.setAttribute("cy", (poolY + sway).toFixed(2));
+    E.tearPool.setAttribute("opacity", (tear * 0.9).toFixed(3));
+    E.tearLine.setAttribute("cy", (poolY - HALFH * 0.62 + sway).toFixed(2)); // the pool's top edge
+    E.tearLine.setAttribute("opacity", (tear * 0.8).toFixed(3));
     E.sheen.setAttribute("transform", `translate(${gx * 0.1} ${gy * 0.1}) scale(1 ${shadeY})`);
     const sx = -E.sign * HALFW * 0.36, sy = -HALFH * 0.38;
     E.star.setAttribute("transform", `translate(${gx * 0.3} ${gy * 0.3}) rotate(${(t * 18) % 360} ${sx} ${sy})`);
@@ -280,22 +325,35 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     // (a muted, tender read); a small hue nudge warms/cools. Composed with the preset's hue/sat.
     moodV = lerp(moodV, moodVTarget, 0.02);
     moodA = lerp(moodA, moodATarget, 0.03);
+    const rise =
+      moodV >= 0
+        ? (moodV - TEAR_JOY_AT) / (TEAR_JOY_FULL - TEAR_JOY_AT)
+        : (-moodV - TEAR_SORROW_AT) / (TEAR_SORROW_FULL - TEAR_SORROW_AT);
+    // Arousal deepens them without gating them: her sorrow is a low-arousal state by design, so a
+    // quiet grief still wells — just more softly than a bright, overwhelmed joy.
+    const tearTgt = clamp(rise, 0, 1) * (0.6 + 0.4 * moodA);
+    tear = lerp(tear, tearTgt, 0.02); // slow on purpose — they well up, they don't switch on
     const satMul = 1 - Math.max(0, -moodV) * 0.5;
     eyesG.style.filter = `hue-rotate(${(cur.hue + moodV * 8).toFixed(1)}deg) saturate(${(cur.sat * satMul).toFixed(3)})`;
 
     let gx = cur.gaze.x, gy = cur.gaze.y;
+    const faceFresh = now - faceT < FACE_TTL; // she saw you just now → follow you, not the pointer
     if (now / 1000 > nextMicro) { microTgt = { x: rnd(-0.05, 0.05), y: rnd(-0.02, 0.02) }; nextMicro = now / 1000 + rnd(0.4, 1.3); }
     micro.x = lerp(micro.x, microTgt.x, 0.18); micro.y = lerp(micro.y, microTgt.y, 0.18);
     const tremorX = Math.sin(t * 6.7) * 0.006 + Math.sin(t * 10.9) * 0.004;
     if (tgt.mode === "wander") {
       gx += Math.sin(t * 0.7) * 0.5; gy += Math.sin(t * 0.53) * 0.35 - 0.15;
     } else if (tgt.mode === "lock") {
+      // "listening" is a lock preset — this is the branch that runs while she's holding your gaze,
+      // so following you here is what makes her feel present.
       gx += micro.x * 0.7 + tremorX; gy += micro.y * 0.7;
-      if (mouseActive) { gx += mouse.x * 0.35; gy += mouse.y * 0.3; }
+      if (faceFresh) { gx += face.x * 0.55; gy += face.y * 0.45; }
+      else if (mouseActive) { gx += mouse.x * 0.35; gy += mouse.y * 0.3; }
     } else {
       if (now / 1000 > nextSacc) { saccTgt = { x: rnd(-0.14, 0.14), y: rnd(-0.12, 0.12) }; nextSacc = now / 1000 + rnd(1.8, 5); }
       sacc.x = lerp(sacc.x, saccTgt.x, 0.03); sacc.y = lerp(sacc.y, saccTgt.y, 0.03);
-      if (mouseActive && now - mouseT < 2500) { gx += mouse.x * 0.7 + micro.x * 0.6 + tremorX; gy += mouse.y * 0.6 + micro.y * 0.6; }
+      if (faceFresh) { gx += face.x * 0.7 + micro.x * 0.6 + tremorX; gy += face.y * 0.6 + micro.y * 0.6; }
+      else if (mouseActive && now - mouseT < 2500) { gx += mouse.x * 0.7 + micro.x * 0.6 + tremorX; gy += mouse.y * 0.6 + micro.y * 0.6; }
       else { gx += sacc.x + micro.x + tremorX; gy += sacc.y + micro.y; }
     }
     curGaze.x = lerp(curGaze.x, clamp(gx, -1, 1), 0.15);
@@ -367,6 +425,14 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     setMood(valence: number, arousal: number) {
       moodVTarget = clamp(valence, -1, 1);
       moodATarget = clamp(arousal, 0, 1);
+    },
+    setGaze(x: number, y: number) {
+      face.x = clamp(x, -1, 1);
+      face.y = clamp(y, -1, 1);
+      faceT = performance.now(); // freshness stamp — the frame loop lets this lapse on its own
+    },
+    getDebug() {
+      return { state: curState, moodV, moodA, tear };
     },
     destroy() {
       cancelAnimationFrame(raf);

@@ -357,6 +357,11 @@ export default function Home() {
   const handleVoice = useCallback((level: number) => {
     engineRef.current?.setVoiceLevel(level);
   }, []);
+  // Her eyes follow where you actually are, not the mouse — presence is the whole point.
+  const handleGaze = useCallback((x: number, y: number) => {
+    engineRef.current?.setGaze(x, y);
+  }, []);
+  const readEyeDebug = useCallback(() => engineRef.current?.getDebug() ?? null, []);
 
   useEffect(() => {
     const v = voiceRef.current;
@@ -379,7 +384,13 @@ export default function Home() {
           <Wordmark />
         </div>
         <div className="topbar-right">
-          <PresenceControl ref={presenceRef} onAttention={handleAttention} onVoice={handleVoice} />
+          <PresenceControl
+            ref={presenceRef}
+            onAttention={handleAttention}
+            onVoice={handleVoice}
+            onGaze={handleGaze}
+            getEyeDebug={readEyeDebug}
+          />
         </div>
       </header>
 
