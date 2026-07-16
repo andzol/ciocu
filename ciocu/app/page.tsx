@@ -10,6 +10,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import PresenceControl, { type PresenceHandle } from "@/components/PresenceControl";
 import Onboarding from "@/components/Onboarding";
 import VersionBadge from "@/components/VersionBadge";
+import PartnerBadge from "@/components/PartnerBadge";
 import ChatDrawer, { type ChatMessage } from "@/components/ChatDrawer";
 import type { EyeEngineHandle } from "@/lib/eyes/engine";
 import { CIOCU_SYSTEM } from "@/lib/llm/persona";
@@ -410,6 +411,7 @@ export default function Home() {
       </div>
 
       <VersionBadge />
+      <PartnerBadge />
       <ChatDrawer messages={messages} onSend={sendMessage} open={chatOpen} onOpenChange={setChatOpen} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding onEnable={() => presenceRef.current?.enable()} />
