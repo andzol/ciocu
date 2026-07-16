@@ -2,7 +2,7 @@
 // browser bundle. Streams the model's reply back as plain-text token deltas.
 
 import type { NextRequest } from "next/server";
-import { retrieve } from "@/lib/knowledge/llamacloud";
+import { allowedBaseIds, retrieve } from "@/lib/knowledge/llamacloud";
 import { kvIncr } from "@/lib/stats/kv";
 
 export const runtime = "nodejs";
@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Knowledge: retrieve reference chunks from each enabled base and inject them into her context.
+  // The ids come from the client's localStorage, so they're a request, not permission — a withheld
+  // base stays withheld even for someone who toggled it on before it was hidden.
+  knowledge = await allowedBaseIds(knowledge);
   if (knowledge.length > 0) {
     const query = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (query.trim()) {

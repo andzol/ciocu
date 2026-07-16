@@ -43,7 +43,17 @@ export function findSupportBase(bases: KnowledgeBase[]): KnowledgeBase | undefin
   return bases.find((b) => b.name === SUPPORT_BASE_SLUG);
 }
 
-/** How many of these enabled bases actually cost energy — the support base is free. */
+/**
+ * How many of these enabled bases actually cost energy — the support base is free.
+ *
+ * An id that isn't in `bases` is charged for NOTHING: it's a base the server withheld (or dropped),
+ * so /api/chat won't retrieve from it. Stale ids linger in localStorage after a base is hidden, and
+ * the old `!find(...)?.free` read them as unknown⇒billable — energy for a reply that never consulted
+ * anything.
+ */
 export function billableCount(enabledIds: string[], bases: KnowledgeBase[]): number {
-  return enabledIds.filter((id) => !bases.find((b) => b.id === id)?.free).length;
+  return enabledIds.filter((id) => {
+    const base = bases.find((b) => b.id === id);
+    return base !== undefined && !base.free;
+  }).length;
 }

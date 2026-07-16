@@ -50,6 +50,48 @@ export async function listPipelines(): Promise<KnowledgeBase[]> {
   }
 }
 
+// Bases withheld from the app entirely, by pipeline slug. Not a UI preference — a base listed here
+// is unavailable everywhere: it never reaches the Settings list AND /api/chat refuses to retrieve
+// from it, so a client that still has its id (already toggled on, stored in localStorage) gets
+// nothing. Hiding it in the UI alone would leave the material shaping her replies.
+//
+// ciocu-sexual-psychology: withheld pending the legal framework to publish adult material
+// (age assurance, jurisdiction rules). The pipeline and its 18+/(i) plumbing stay intact — remove
+// the slug here to bring it back.
+//
+// ⚠ Before un-hiding: enabled base ids persist in localStorage (lib/knowledge/enabled.ts), so anyone
+// who had this on before it was hidden will have it silently switched back on the moment the slug
+// goes — no age check, no consent, no notice. That's the wrong way for adult material to return.
+// Whatever gate the legal framework requires must run BEFORE the id is honoured again.
+const HIDDEN_BASES = new Set(["ciocu-sexual-psychology"]);
+
+let visibleCache: { at: number; bases: KnowledgeBase[] } | null = null;
+const VISIBLE_TTL = 60_000;
+
+/**
+ * The pipelines the app is allowed to use. Single source of truth for both the Settings list and
+ * the retrieval gate, so the two can't drift apart.
+ *
+ * A failed/empty listing isn't cached: caching it would keep knowledge dark for a full TTL after a
+ * transient LlamaCloud blip, and an empty list is exactly what makes the gate fail closed.
+ */
+export async function visiblePipelines(): Promise<KnowledgeBase[]> {
+  if (visibleCache && Date.now() - visibleCache.at < VISIBLE_TTL) return visibleCache.bases;
+  const bases = (await listPipelines()).filter((p) => !HIDDEN_BASES.has(p.name));
+  if (bases.length > 0) visibleCache = { at: Date.now(), bases };
+  return bases;
+}
+
+/**
+ * Drop any base the app won't serve. Fails CLOSED: if the pipeline list is unavailable we retrieve
+ * from nothing rather than risk honouring a hidden id — she simply answers without knowledge.
+ */
+export async function allowedBaseIds(requested: string[]): Promise<string[]> {
+  if (requested.length === 0) return [];
+  const allowed = new Set((await visiblePipelines()).map((p) => p.id));
+  return requested.filter((id) => allowed.has(id));
+}
+
 /** Retrieve the most relevant chunk texts from one pipeline for a query. */
 export async function retrieve(pipelineId: string, query: string, topK = 4): Promise<string[]> {
   if (!key() || !query.trim()) return [];
