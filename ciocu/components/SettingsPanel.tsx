@@ -7,6 +7,7 @@ import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
 import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
 import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
+import { PLAN_CARDS, formatPrice, loadPlanPrices, type PlanPrice } from "@/lib/billing/plans";
 import { STT_LANGUAGES, setVoiceLang, setVoiceProvider, useVoicePrefs } from "@/lib/voice/prefs";
 
 import { loadBases, type KnowledgeBase } from "@/lib/knowledge/bases";
@@ -39,10 +40,13 @@ function styleIframeScrollbar(e: React.SyntheticEvent<HTMLIFrameElement>): void 
   }
 }
 
+// Just the plan's name. The price deliberately isn't here — it lives in Lemon Squeezy, and the one
+// that used to sit in this label ("Basic — $19.99/mo") is exactly the kind of copy that goes stale
+// the moment the dashboard changes. The pricing table reads it live instead.
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
-  basic: "Basic — $19.99/mo",
-  pro: "Pro — $99.99/mo",
+  basic: "Basic",
+  pro: "Pro",
 };
 
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -56,6 +60,22 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const [infoUrls, setInfoUrls] = useState<Record<string, string>>({});
   const [infoView, setInfoView] = useState<{ title: string; url: string } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [prices, setPrices] = useState<Record<string, PlanPrice> | null>(null);
+
+  // Anyone who isn't paying sees the plans — signed out or signed in, the choice is the same one.
+  const onFreeTier = usage?.tier === "none";
+
+  // Live prices for the plan table (LS is the source of truth; see lib/billing/plans.ts).
+  useEffect(() => {
+    if (!open || !onFreeTier || prices) return;
+    let cancelled = false;
+    void loadPlanPrices().then((p) => {
+      if (!cancelled) setPrices(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, onFreeTier, prices]);
 
   useEffect(() => {
     if (!open) return;
@@ -110,7 +130,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
-        className="modal-panel"
+        /* Three plan columns don't fit the default 440px panel — widen only while they're shown. */
+        className={`modal-panel${onFreeTier && CHECKOUT_URL ? " modal-panel--wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
@@ -159,16 +180,12 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             {!usage ? (
               <p className="settings-muted">Loading…</p>
             ) : usage.tier === "none" ? (
-              <>
-                <p className="settings-usage-line">
-                  <strong>{usage.freeMessagesLeft ?? 0}</strong> of {FREE_MESSAGE_LIMIT} free messages
-                  left
-                </p>
-                <p className="settings-muted settings-usage-approx">
-                  Subscribe to unlock real-time voice, a monthly energy allowance, and Ciocu
-                  remembering you.
-                </p>
-              </>
+              /* The "subscribe to unlock…" blurb used to live here; the plan table below now says
+                 the same thing with the prices attached. */
+              <p className="settings-usage-line">
+                <strong>{usage.freeMessagesLeft ?? 0}</strong> of {FREE_MESSAGE_LIMIT} free messages
+                left
+              </p>
             ) : (
               <>
                 {/* One bar, with the percentage read out beside it (monthly subscription). */}
@@ -200,44 +217,109 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </>
             )}
 
-            {/* Actions: top up this period's credits, and/or subscribe/upgrade. Free users see a
-                Subscribe button too (clicking prompts sign-in, since checkout needs their email). */}
-            {(canTopUp || (CHECKOUT_URL && usage && usage.tier !== "pro")) && (
-              <>
-                <div className="settings-actions">
-                  {canTopUp && (
-                    <button
-                      type="button"
-                      className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
-                      onClick={() => {
-                        openTopup(user!.email);
-                        onClose();
-                      }}
-                    >
-                      Top up
-                    </button>
-                  )}
-                  {CHECKOUT_URL && usage && usage.tier !== "pro" && (
-                    <button
-                      type="button"
-                      className={usage.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
-                      onClick={() => {
-                        if (!user) {
-                          setHint("Sign in with Google (top left) to subscribe.");
-                          return;
-                        }
-                        openCheckout(user.email);
-                        onClose();
-                      }}
-                    >
-                      {usage.tier === "basic" ? "Upgrade plan" : "Subscribe"}
-                    </button>
-                  )}
-                </div>
-                {hint && <p className="settings-warn">{hint}</p>}
-              </>
+            {/* Actions for people already paying: top up this period, and/or move up a plan. Free
+                users don't get a Subscribe button here — they get the plan table below, which shows
+                what they'd be buying before asking them to buy it. */}
+            {(canTopUp || (CHECKOUT_URL && usage?.tier === "basic")) && (
+              <div className="settings-actions">
+                {canTopUp && (
+                  <button
+                    type="button"
+                    className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
+                    onClick={() => {
+                      openTopup(user!.email);
+                      onClose();
+                    }}
+                  >
+                    Top up
+                  </button>
+                )}
+                {CHECKOUT_URL && usage?.tier === "basic" && (
+                  <button
+                    type="button"
+                    className={usage.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
+                    onClick={() => {
+                      openCheckout(user!.email);
+                      onClose();
+                    }}
+                  >
+                    Upgrade plan
+                  </button>
+                )}
+              </div>
             )}
           </section>
+
+          {/* ── Plans (only while you're on the free tier — signed out or in) ───────── */}
+          {onFreeTier && CHECKOUT_URL && (
+            <section className="settings-section">
+              <h3 className="settings-heading">Plans</h3>
+              <div className="plan-grid">
+                {PLAN_CARDS.map((card) => {
+                  const isCurrent = card.tier === "none";
+                  const live = card.tier === "none" ? null : prices?.[card.tier];
+                  const per = live?.interval === "year" ? "/yr" : "/mo";
+                  return (
+                    <div
+                      key={card.tier}
+                      className={`plan-card${isCurrent ? " plan-card--current" : ""}`}
+                    >
+                      <h4 className="plan-name">{card.name}</h4>
+                      <p className="plan-tagline">{card.tagline}</p>
+
+                      <p className="plan-price">
+                        {isCurrent ? (
+                          <>
+                            <span className="plan-price-amount">$0</span>
+                          </>
+                        ) : live?.priceCents != null ? (
+                          <>
+                            <span className="plan-price-amount">{formatPrice(live.priceCents)}</span>
+                            <span className="plan-price-per">{per}</span>
+                          </>
+                        ) : prices ? (
+                          /* LS didn't give us a price. Say so — never guess one, it's what they pay. */
+                          <span className="plan-price-unknown">See price at checkout</span>
+                        ) : (
+                          <span className="plan-price-unknown">…</span>
+                        )}
+                      </p>
+
+                      {isCurrent ? (
+                        <button type="button" className="plan-btn plan-btn--current" disabled>
+                          Current plan
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="plan-btn"
+                          onClick={() => {
+                            // Checkout needs an email to bind the subscription to, and LS is our
+                            // only customer record — so sign-in has to come first.
+                            if (!user) {
+                              setHint("Sign in with Google (top left) to subscribe.");
+                              return;
+                            }
+                            openCheckout(user.email);
+                            onClose();
+                          }}
+                        >
+                          Get {card.name}
+                        </button>
+                      )}
+
+                      <ul className="plan-features">
+                        {card.features.map((f) => (
+                          <li key={f}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+              {hint && <p className="settings-warn">{hint}</p>}
+            </section>
+          )}
 
           {/* ── Voice (subscribers only — free users are on Google either way) ─────── */}
           {usage && usage.tier !== "none" && (

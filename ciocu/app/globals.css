@@ -396,6 +396,7 @@ a.menu-item {
 .modal-panel {
   width: min(440px, 100%);
   max-height: min(86vh, 680px);
+  transition: width 0.18s var(--ease-out);
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -405,6 +406,10 @@ a.menu-item {
 }
 @keyframes modal-rise {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+/* Wide enough for three plan columns; only applied while they're on screen. */
+.modal-panel--wide {
+  width: min(760px, 100%);
 }
 .modal-header {
   display: flex;
@@ -723,6 +728,116 @@ a.menu-item {
   font-size: 15px;
   font-weight: 700;
   border-radius: 12px;
+}
+
+/* ── Plan table (free tier only) ──────────────────────────────────────────────
+   Three columns of the same shape, so the eye compares price and features across them rather than
+   reading three separate cards. Prices are injected live from Lemon Squeezy — never hard-coded. */
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+/* One column each is unreadable on a phone; stack instead. The panel is already full-width there. */
+@media (max-width: 620px) {
+  .plan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+/* The plan you're on: stated, not sold. Dimmer than the others rather than brighter. */
+.plan-card--current {
+  background: transparent;
+}
+.plan-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.plan-tagline {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.plan-price {
+  margin: 12px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  min-height: 30px; /* hold the row steady while the live price loads */
+}
+.plan-price-amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.plan-price-per {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.plan-price-unknown {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.plan-btn {
+  margin-top: 12px;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-cyan);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cyan);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.plan-btn:hover:not(:disabled) {
+  background: var(--cyan);
+  color: #04252c;
+}
+.plan-btn--current,
+.plan-btn:disabled {
+  border-color: var(--border);
+  color: var(--text-dim);
+  cursor: default;
+}
+.plan-features {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-features li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.plan-features li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border-cyan);
 }
 
 /* buttons */

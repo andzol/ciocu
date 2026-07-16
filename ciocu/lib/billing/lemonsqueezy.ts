@@ -96,6 +96,56 @@ async function topupCreditsSince(email: string, sinceMs: number): Promise<number
   }
 }
 
+/** What a paid plan costs, straight from LS. `priceCents` is null when LS couldn't tell us. */
+export interface PlanPrice {
+  tier: Exclude<Tier, "none">;
+  priceCents: number | null;
+  interval: string | null; // "month" | "year" — LS's own billing interval
+}
+
+// Prices change in the LS dashboard, not in a deploy, so the app must read them rather than hold a
+// copy: a hard-coded price silently becomes a false quote the moment someone edits the dashboard.
+// Cached briefly — this is on the path of opening Settings, and prices change a few times a year.
+let priceCache: { at: number; plans: PlanPrice[] } | null = null;
+const PRICE_TTL = 600_000; // 10 min
+
+async function fetchVariantPrice(variantId: string): Promise<{ price: number; interval: string } | null> {
+  if (!API_KEY || !variantId) return null;
+  try {
+    const res = await fetch(`${LS_API}/variants/${encodeURIComponent(variantId)}`, {
+      headers: { Authorization: `Bearer ${API_KEY}`, Accept: "application/vnd.api+json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const a = (await res.json())?.data?.attributes ?? {};
+    const price = Number(a.price);
+    if (!Number.isFinite(price)) return null;
+    return { price, interval: String(a.interval ?? "month") };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The live price of each paid plan. Returns `priceCents: null` rather than a guess when LS is
+ * unreachable or a variant isn't mapped — the UI then says so instead of quoting a number we can't
+ * stand behind. A wrong price is worse than no price: it's what the customer is charged.
+ */
+export async function getPlanPrices(): Promise<PlanPrice[]> {
+  if (priceCache && Date.now() - priceCache.at < PRICE_TTL) return priceCache.plans;
+  const [basic, pro] = await Promise.all([
+    fetchVariantPrice(VARIANT_BASIC),
+    fetchVariantPrice(VARIANT_PRO),
+  ]);
+  const plans: PlanPrice[] = [
+    { tier: "basic", priceCents: basic?.price ?? null, interval: basic?.interval ?? null },
+    { tier: "pro", priceCents: pro?.price ?? null, interval: pro?.interval ?? null },
+  ];
+  // Don't cache a total failure — that would keep the panel priceless for the whole TTL after a blip.
+  if (plans.some((p) => p.priceCents !== null)) priceCache = { at: Date.now(), plans };
+  return plans;
+}
+
 /** True if the email has any active subscription (gates paid-only features like Soniox). */
 export async function hasActiveSubscription(email: string): Promise<boolean> {
   return (await fetchActiveSubscription(email)) !== null;
