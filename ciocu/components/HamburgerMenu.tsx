@@ -15,12 +15,15 @@ import {
   Question,
   FileText,
   Envelope,
+  ChatCircleText,
+  Compass,
   ShieldCheck,
 } from "@phosphor-icons/react";
 import { useGoogleUser } from "@/lib/auth/session";
 import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
 import { findSupportBase, loadBases } from "@/lib/knowledge/bases";
 import { toggleKnowledge } from "@/lib/knowledge/enabled";
+import { MARKETING_URL, SUPPORT_EMAIL } from "@/lib/support";
 
 interface Item {
   id: string;
@@ -210,6 +213,23 @@ export default function HamburgerMenu({
             </div>
           )}
 
+          {/* Features — the marketing site. Sits next to Subscribe because it's what you read
+              before deciding to pay. A separate subdomain, so it opens in a new tab rather than
+              navigating out of a conversation in progress. */}
+          <a
+            role="menuitem"
+            className="menu-item"
+            href={MARKETING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+          >
+            <span className="menu-item-icon">
+              <Compass size={20} weight="regular" />
+            </span>
+            <span>Features</span>
+          </a>
+
           {/* Subscribe — gated behind sign-in. */}
           <button type="button" role="menuitem" className="menu-item" onClick={handleSubscribe}>
             <span className="menu-item-icon">
@@ -246,6 +266,8 @@ export default function HamburgerMenu({
                 </span>
                 <span>Privacy Policy</span>
               </a>
+              {/* Support asks Ciocu herself — it opens the chat, it doesn't send mail. It used to
+                  carry the envelope, which now belongs to the item that actually emails. */}
               <button
                 type="button"
                 role="menuitem"
@@ -253,10 +275,22 @@ export default function HamburgerMenu({
                 onClick={handleSupport}
               >
                 <span className="menu-item-icon">
-                  <Envelope size={19} weight="regular" />
+                  <ChatCircleText size={19} weight="regular" />
                 </span>
                 <span>Support</span>
               </button>
+              {/* …and when she can't help, a human. */}
+              <a
+                role="menuitem"
+                className="menu-item menu-item--sub"
+                href={`mailto:${SUPPORT_EMAIL}`}
+                onClick={() => setOpen(false)}
+              >
+                <span className="menu-item-icon">
+                  <Envelope size={19} weight="regular" />
+                </span>
+                <span>Email us</span>
+              </a>
             </div>
           )}
 

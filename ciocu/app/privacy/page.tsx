@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import styles from "../legal.module.css";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // This describes Ciocu's real data flows (verified against the code): what stays
@@ -10,7 +11,6 @@ import styles from "../legal.module.css";
 // Have a lawyer review before relying on it.
 const CONTROLLER = "Ciocu";
 const EFFECTIVE_DATE = "14 July 2026";
-const SUPPORT_EMAIL = "info@ciocu.app";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {

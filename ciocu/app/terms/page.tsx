@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import styles from "../legal.module.css";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Everything below describes how Ciocu actually behaves. Two things are still
@@ -9,7 +10,6 @@ import styles from "../legal.module.css";
 // Have a lawyer review this page before relying on it.
 const OPERATOR = "Ciocu";
 const EFFECTIVE_DATE = "14 July 2026";
-const SUPPORT_EMAIL = "info@ciocu.app";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {
