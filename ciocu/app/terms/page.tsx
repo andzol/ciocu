@@ -61,8 +61,7 @@ export default function TermsPage() {
         <p>
           You must be old enough to agree to these terms where you live, and to meet your country’s
           minimum age for using online services (in much of the EU that is 16, or 13 with a parent’s
-          consent). Ciocu itself carries no adult-only restriction — but individual knowledge bases
-          marked <strong>18+</strong> do. See section 8.
+          consent).
         </p>
 
         <h2>4. Your account</h2>
@@ -133,11 +132,8 @@ export default function TermsPage() {
 
         <h2>8. Knowledge bases and generated content</h2>
         <p>
-          Knowledge bases are optional reference libraries you can switch on. Bases marked{" "}
-          <strong>18+</strong> contain frank adult material — the sexual psychology base is explicit
-          and clinical. <strong>You must be 18 or older to switch on an 18+ base</strong>, and by
-          enabling one you confirm that you are. Every base is off by default, and the rest of Ciocu
-          carries no such restriction.
+          Knowledge bases are optional reference libraries you can switch on. Every base is off by
+          default, and you can switch one off again at any time.
         </p>
         <p>
           Generated answers may be inaccurate, incomplete, or out of date, even when drawing on a

@@ -271,8 +271,7 @@ export default function PrivacyPage() {
         <h2>10. Children</h2>
         <p>
           Ciocu is not intended for children. You must be old enough to use online services where you
-          live, and some knowledge bases are marked 18+ and are for adults only. If you believe a
-          child has used Ciocu, contact us and we will help remove the data.
+          live. If you believe a child has used Ciocu, contact us and we will help remove the data.
         </p>
 
         <h2>11. Changes</h2>
