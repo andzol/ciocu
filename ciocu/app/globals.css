@@ -123,38 +123,6 @@ body:has(.doc-shell) {
   justify-self: end;
 }
 
-/* Partner / directory badge — see components/PartnerBadge.tsx. Stacked above the version badge,
-   which already owns this corner; the two would otherwise sit on top of each other.
-   Below --z-drawer/--z-menu/--z-modal on purpose: it must never cover the app's own surfaces. */
-.partner-badge {
-  position: fixed;
-  left: 12px;
-  bottom: 34px; /* clears .version-badge (bottom 10px + ~14px line) */
-  /* Deliberately UNDER --z-caption (15): the caption band runs the full width of the bottom, so a
-     long line of her speech reaches into this corner. When they meet, her words draw over the
-     badge — never the other way round. The band is pointer-events:none, so the link still clicks. */
-  z-index: 14;
-  line-height: 0; /* kill the inline-image descender gap, so the box is exactly the badge */
-  opacity: 0.75;
-  transition: opacity 0.15s var(--ease-out);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.partner-badge:hover {
-  opacity: 1;
-}
-.partner-badge img {
-  display: block;
-  width: 220px;
-  height: 48px;
-}
-/* On a phone the caption band owns the whole bottom of the screen — there is no corner left to
-   borrow, and a badge there lands squarely on her speech. Hide it rather than fight her for room. */
-@media (max-width: 620px) {
-  .partner-badge {
-    display: none;
-  }
-}
-
 .version-badge {
   position: fixed;
   left: 12px;
