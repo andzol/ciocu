@@ -277,6 +277,30 @@ body:has(.doc-shell) {
   white-space: nowrap;
   font-size: 12px;
   line-height: 1.5;
+  padding-right: 26px; /* room for the × so it never sits on the numbers */
+}
+/* Dismiss the readout. Sits in the box's top-right; quiet until you go looking for it. */
+.presence-devbox-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.presence-devbox-close:hover {
+  opacity: 1;
+  color: var(--text);
 }
 .presence-debug {
   color: var(--text-dim);
@@ -1031,7 +1055,10 @@ a.menu-item {
 }
 .caption-word {
   display: inline-block;
-  white-space: pre;
+  /* No white-space: pre here. It existed to protect the space the span used to carry inside itself,
+     but that also rendered any newline the model streamed as a literal break mid-inline-block (see
+     Caption.tsx). The space now lives between spans as an ordinary text node, so it collapses and
+     wraps by itself. */
   animation: caption-in 260ms var(--ease-out) backwards;
   animation-delay: calc(var(--i) * 42ms);
 }

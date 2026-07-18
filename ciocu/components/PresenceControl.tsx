@@ -1,10 +1,13 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Eye, EyeSlash } from "@phosphor-icons/react";
+import { Eye, EyeSlash, X } from "@phosphor-icons/react";
 import type { AttentionHandle } from "@/lib/attention/faceAttention";
 
 type UIState = "off" | "starting" | "on" | "denied" | "error";
+
+/** Remembers that the dev readout was dismissed, so it stays gone across reloads. */
+const DEVBOX_HIDDEN_KEY = "ciocu.devbox.hidden";
 interface DebugInfo {
   faces: number;
   yaw: number;
@@ -51,6 +54,31 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
   // for everyone — no ?debug needed. Before real users arrive, put the gate back:
   //   typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug")
   const [debugOn] = useState(true);
+  // Dismissed by the user (the × on the box). Persisted, because re-hiding a debug panel on every
+  // reload is its own small annoyance — and read lazily so SSR and the first client render agree.
+  const [debugHidden, setDebugHidden] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      // ?debug is the way back: without it, dismissing would be one-way and the only cure would be
+      // clearing site data. Visiting ciocu.app/?debug un-hides and forgets the dismissal.
+      if (new URLSearchParams(window.location.search).has("debug")) {
+        window.localStorage.removeItem(DEVBOX_HIDDEN_KEY);
+        return false;
+      }
+      return window.localStorage.getItem(DEVBOX_HIDDEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function hideDevbox() {
+    setDebugHidden(true);
+    try {
+      window.localStorage.setItem(DEVBOX_HIDDEN_KEY, "1");
+    } catch {
+      /* private mode — it just won't persist */
+    }
+  }
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const [feel, setFeel] = useState<{
     state: string;
@@ -64,10 +92,11 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
   // Poll her feeling for the debug line. 5/s is plenty to watch mood drift and tears well up, and
   // it keeps the engine's 60fps values out of React entirely.
   useEffect(() => {
-    if (!debugOn || !getEyeDebug) return;
+    // Hidden means hidden: don't keep polling the engine for a box nobody is looking at.
+    if (!debugOn || debugHidden || !getEyeDebug) return;
     const id = window.setInterval(() => setFeel(getEyeDebug()), 200);
     return () => window.clearInterval(id);
-  }, [debugOn, getEyeDebug]);
+  }, [debugOn, debugHidden, getEyeDebug]);
 
   useEffect(() => {
     return () => handleRef.current?.stop();
@@ -142,9 +171,19 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
         </span>
       )}
 
-      {/* The raw numbers get their own box under the status — inline they made one very long line. */}
-      {active && debugOn && (debug || feel) && (
+      {/* The raw numbers get their own box under the status — inline they made one very long line.
+          Dismissible: it's developer instrumentation sitting on top of her face. */}
+      {active && debugOn && !debugHidden && (debug || feel) && (
         <div className="presence-devbox">
+          <button
+            type="button"
+            className="presence-devbox-close"
+            aria-label="Hide debug readout"
+            title="Hide debug readout"
+            onClick={hideDevbox}
+          >
+            <X size={12} weight="bold" />
+          </button>
           {debug && (
             <span className="presence-debug">
               {`faces ${debug.faces} · yaw ${debug.yaw.toFixed(2)} · pitch ${debug.pitch.toFixed(2)} · gaze ${debug.gazeX.toFixed(2)},${debug.gazeY.toFixed(2)}`}
