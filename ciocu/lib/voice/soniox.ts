@@ -14,6 +14,12 @@ interface SonioxOptions {
   onFinal: (text: string) => void;
   onInterim?: (text: string) => void;
   onProcessedMs?: (deltaMs: number) => void;
+  /**
+   * Soniox stopped working mid-session — a server error, or the socket dropped. The caller MUST
+   * fall back to the free path: without this the mic keeps capturing into a closed socket and she
+   * simply stops hearing you, with nothing on screen to say why.
+   */
+  onFailure?: (reason: string) => void;
 }
 
 interface Token {
@@ -24,6 +30,12 @@ interface SonioxMessage {
   tokens?: Token[];
   total_audio_proc_ms?: number;
   finished?: boolean;
+  // Soniox reports failures INSIDE an ordinary message (tokens: [] alongside these), not as a
+  // socket error — so a client that only reads `tokens` sees an empty result and goes quiet.
+  // That's how a dead balance looked like "voice just doesn't work".
+  error_code?: number;
+  error_type?: string;
+  error_message?: string;
 }
 interface SttToken {
   apiKey: string;
@@ -92,12 +104,30 @@ export async function createSonioxVoice(opts: SonioxOptions): Promise<VoiceHandl
   let wsReady = false;
   let finalBuf = "";
   let lastTotalMs = 0;
+  // Distinguishes "the user turned it off" from "it broke". Only the latter should fall back —
+  // otherwise stopping the camera would look like a failure and restart the mic behind them.
+  let userStopped = false;
+  let failed = false;
+
+  /** Give up on Soniox and tell the caller, once. */
+  function fail(reason: string) {
+    if (failed || userStopped) return;
+    failed = true;
+    end(); // release the mic and socket before handing back
+    opts.onFailure?.(reason);
+  }
 
   function handleMessage(data: string | ArrayBuffer) {
     let msg: SonioxMessage;
     try {
       msg = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data));
     } catch {
+      return;
+    }
+    // Errors arrive as a normal message. Check before anything else: `tokens` is [] on an error,
+    // so every branch below would quietly no-op and the failure would vanish.
+    if (msg.error_code != null || msg.error_message) {
+      fail(msg.error_message || `soniox error ${msg.error_type ?? msg.error_code}`);
       return;
     }
     // meter the newly processed audio (Soniox reports cumulative ms)
@@ -145,6 +175,7 @@ export async function createSonioxVoice(opts: SonioxOptions): Promise<VoiceHandl
   async function begin() {
     if (running) return;
     running = true;
+    userStopped = false;
     finalBuf = "";
     lastTotalMs = 0;
 
@@ -153,6 +184,9 @@ export async function createSonioxVoice(opts: SonioxOptions): Promise<VoiceHandl
       token = await fetchToken();
       if (!token || !running) {
         running = false;
+        // A key we can't renew means entitlement went away mid-session (lapsed subscription, or
+        // the endpoint is down). Same treatment: hand back to the free path rather than sit mute.
+        if (!token) fail("could not renew the voice key");
         return;
       }
     }
@@ -199,9 +233,14 @@ export async function createSonioxVoice(opts: SonioxOptions): Promise<VoiceHandl
       ws.onmessage = (ev: MessageEvent) => handleMessage(ev.data);
       ws.onclose = () => {
         wsReady = false;
+        // The socket closing while we're still meant to be listening is a failure, not an ending.
+        // This is also the *expected* path on a long sitting: the server caps a stream at
+        // MAX_SESSION_S (15 min), so anyone who leaves the camera on hits it and — before this —
+        // silently lost voice for the rest of the session.
+        if (running && !userStopped) fail("connection closed");
       };
       ws.onerror = () => {
-        /* onclose handles teardown state */
+        /* onclose fires next and handles the fallback */
       };
     } catch {
       end(); // mic denied or audio setup failed
@@ -214,6 +253,7 @@ export async function createSonioxVoice(opts: SonioxOptions): Promise<VoiceHandl
       void begin();
     },
     stop() {
+      userStopped = true; // a deliberate stop must never look like a failure
       end();
     },
   };

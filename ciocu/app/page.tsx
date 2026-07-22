@@ -331,12 +331,23 @@ export default function Home() {
     if (attendingRef.current && web.supported) web.start();
 
     let soniox: VoiceHandle | null = null;
+    let fellBack = false;
     if (user && voiceProvider === "soniox") {
       (async () => {
         const s = await createSonioxVoice({
           onFinal: (t) => sendRef.current(t),
           onProcessedMs: (ms) => {
             void recordVoiceSeconds(ms / 1000); // meter exactly the audio Soniox processed
+          },
+          // Soniox died after it had taken over (server error, dropped socket, or the 15-min
+          // stream cap). Hand the mic back to Web Speech: degraded hearing beats none, and
+          // silently losing her ears is indistinguishable from the app being broken.
+          onFailure: () => {
+            if (cancelled || fellBack) return;
+            fellBack = true;
+            soniox = null;
+            voiceRef.current = web;
+            if (attendingRef.current && web.supported) web.start();
           },
         });
         if (cancelled || !s) {
