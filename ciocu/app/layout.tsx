@@ -10,9 +10,30 @@ const bricolage = Bricolage_Grotesque({
   display: "swap",
 });
 
+const DESCRIPTION = "An emotionally present AI whose face is her eyes, and whose memory is yours.";
+
 export const metadata: Metadata = {
+  // Absolute base for OG/Twitter image URLs — without it Next can't turn the generated
+  // opengraph-image path into the absolute URL crawlers require, and the card silently has no image.
+  metadataBase: new URL("https://ciocu.app"),
   title: "Ciocu",
-  description: "An emotionally present AI whose face is her eyes, and whose memory is yours.",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "Ciocu — an AI that feels present",
+    description: DESCRIPTION,
+    url: "https://ciocu.app",
+    siteName: "Ciocu",
+    type: "website",
+    // og:image is supplied automatically by app/opengraph-image.tsx.
+  },
+  twitter: {
+    // Without an explicit card type X shows the small summary card (or nothing) — this is what
+    // makes it the big image card. Image is inherited from opengraph-image.tsx (X falls back to
+    // og:image when twitter:image isn't set).
+    card: "summary_large_image",
+    title: "Ciocu — an AI that feels present",
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
