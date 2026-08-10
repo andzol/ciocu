@@ -40,7 +40,7 @@ function styleIframeScrollbar(e: React.SyntheticEvent<HTMLIFrameElement>): void 
   }
 }
 
-// Just the plan's name. The price deliberately isn't here — it lives in Lemon Squeezy, and the one
+// Just the plan's name. The price deliberately isn't here — it lives with the payment provider, and the one
 // that used to sit in this label ("Basic — $19.99/mo") is exactly the kind of copy that goes stale
 // the moment the dashboard changes. The pricing table reads it live instead.
 const TIER_LABEL: Record<string, string> = {
@@ -65,7 +65,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   // Anyone who isn't paying sees the plans — signed out or signed in, the choice is the same one.
   const onFreeTier = usage?.tier === "none";
 
-  // Live prices for the plan table (LS is the source of truth; see lib/billing/plans.ts).
+  // Live prices for the plan table (the provider is the source of truth; see lib/billing/plans.ts).
   useEffect(() => {
     if (!open || !onFreeTier || prices) return;
     let cancelled = false;
@@ -278,7 +278,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                             <span className="plan-price-per">{per}</span>
                           </>
                         ) : prices ? (
-                          /* LS didn't give us a price. Say so — never guess one, it's what they pay. */
+                          /* the provider didn't give us a price. Say so — never guess one, it's what they pay. */
                           <span className="plan-price-unknown">See price at checkout</span>
                         ) : (
                           <span className="plan-price-unknown">…</span>

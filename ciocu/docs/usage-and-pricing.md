@@ -52,7 +52,7 @@ Two subscription tiers. Allowances are derived from the profit target in §5, th
 | | Basic | Pro |
 |---|---|---|
 | **Price** | **$19.99 / mo** | **$99.99 / mo** |
-| Lemon Squeezy checkout | `.../checkout/buy/7578c2f4-1557-49e3-886f-2d9ce0cb870f` | _(second tier URL TBD)_ |
+| Rendben checkout | `ciocu.rendben.com/checkout/prod_GiPAMS8iLO64GI8RtYc` | `ciocu.rendben.com/checkout/prod_EUY2iPOr11e5tQX0Oe8` |
 | **Monthly allowance** | **800 credits** | **4,400 credits** |
 | ≈ voice-heavy use | ~24 hrs/mo (~45 min/day) | ~125 hrs/mo (~4 hr/day) |
 | ≈ text-heavy use | ~6,000+ messages | ~34,000 messages |
@@ -65,7 +65,7 @@ Users can mix voice and text freely — it's one credit pool that both draw from
 
 Target: **owner keeps 50% of the gross sticker price** as profit, after the payment fee, with vendor costs capped to fit.
 
-**Lemon Squeezy fee:** 5% + $0.50 per transaction (Merchant of Record — also handles EU VAT and holds the customer/email list).
+**Rendben fee:** 0.5% per transaction, non-custodial — payment is USDC on Solana and settles directly to the owner's wallet. Rendben is **not** a Merchant of Record: it does **not** handle VAT/sales tax or hold the customer list, so that (and tax/consumer-law compliance) is the seller's own responsibility. ⚠️ needs counsel before EU launch.
 
 **Cost budget formula:**
 
@@ -109,18 +109,18 @@ Check: `19.99 − 1.50 − 8.50 = 9.99` ✓ and `99.99 − 5.50 − 44.50 = 49.9
 
 - [ ] Confirm Soniox real-time streaming rate (currently ⚠️ $0.30/hr).
 - [ ] Confirm DeepSeek V4 Pro token price on OpenRouter.
-- [ ] Create the **Pro ($99.99)** product in Lemon Squeezy and capture its buy URL.
+- [x] Basic / Pro / top-up products created in Rendben (`prod_GiPAMS…` $20, `prod_EUY2…` $95, `prod_B996…` $20 one-time), each with its own checkout URL.
 - [x] Build `lib/usage` credit ledger — `lib/usage/rates.ts` (rate card) + `lib/usage/ledger.ts`
   (IndexedDB `ciocu-usage`, monthly rollover, drain, `canUseVoice()` throttle, `useUsage()` hook).
   Text path is wired in `app/page.tsx` (`recordTurn` on send, `recordChatMessage` on reply) and
   verified draining at the correct rates. Voice path wired: Soniox reports `total_audio_proc_ms`
   → `recordVoiceSeconds()`. **Still to wire:** `setTier()` driven by verified subscription status.
 - [x] Soniox STT for paid users only — server-gated. `/api/stt-token` verifies the session cookie
-  (set by `/api/auth`, signed with `AUTH_SECRET`), checks an active Lemon Squeezy subscription
-  (`lib/billing/lemonsqueezy.ts`, needs `LEMONSQUEEZY_API_KEY`), then mints a single-use Soniox
+  (set by `/api/auth`, signed with `AUTH_SECRET`), checks an active subscription with the payment
+  provider (`lib/billing/provider.ts`, needs `BILLING_API_KEY`), then mints a single-use Soniox
   temp key. Client `lib/voice/soniox.ts` streams mic PCM16 → `wss://stt-rt.soniox.com`; falls back
   to free Web Speech if not entitled. Fails CLOSED (verified: no session→401, session+no sub→403).
-  **Env needed in Vercel:** `SONIOX_API_KEY`, `AUTH_SECRET`, `LEMONSQUEEZY_API_KEY`.
-- [ ] Server-authoritative enforcement + align period reset to the Lemon Squeezy renewal date
+  **Env needed in Vercel:** `SONIOX_API_KEY`, `AUTH_SECRET`, `BILLING_API_KEY`.
+- [ ] Server-authoritative enforcement + align period reset to the provider's renewal date
   (current reset is calendar-month, client-side — see the SCOPE note in `ledger.ts`).
 - [ ] Decide Basic-tier voice cap (if going with the text-first split in §7).

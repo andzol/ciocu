@@ -1,7 +1,7 @@
 // The paid plans and what they cost, for the Settings pricing table.
 //
-// Prices come from Lemon Squeezy on every (cached) read rather than from a constant in the repo:
-// LS is what actually charges the customer, so anything we display is a quote and has to match it.
+// Prices come from the payment provider on every (cached) read rather than from a constant in the repo:
+// the provider is what actually charges the customer, so anything we display is a quote and has to match it.
 // A hard-coded price is correct only until someone edits the dashboard, and the failure is silent —
 // the app keeps advertising a number nobody honours.
 //

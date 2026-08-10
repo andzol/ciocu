@@ -105,16 +105,17 @@ export default function TermsPage() {
 
         <h2>6. Payment, renewal and cancellation</h2>
         <p>
-          Payments are handled by Lemon Squeezy, which acts as merchant of record and seller for
-          your purchase. Their terms and privacy policy apply to the transaction itself, and the
-          charge appears on your statement under their name. We never see or store your card
-          details.
+          Payments are processed by Rendben, a non-custodial payment provider for USDC — a
+          US-dollar stablecoin — on the Solana network. You pay from your own crypto wallet, and the
+          payment settles directly to us; Rendben never holds the funds. We do not collect or store
+          card or bank-account details. Rendben&apos;s own terms and privacy policy apply to the
+          payment itself.
         </p>
         <p>
-          Subscriptions are billed in US dollars and renew automatically each month until cancelled.
-          You can cancel at any time from the customer portal linked in your receipt email, or by
-          contacting us; cancelling stops future renewals and you keep access until the end of the
-          period you have already paid for. We do not automatically refund partly-used periods.
+          Subscriptions are priced in USDC and renew automatically each month until cancelled. You
+          can cancel at any time by contacting us; cancelling stops future charges and you keep
+          access until the end of the period you have already paid for. We do not automatically
+          refund partly-used periods.
         </p>
 
         <h2>7. Right of withdrawal and refunds</h2>
@@ -124,10 +125,9 @@ export default function TermsPage() {
           refund it.
         </p>
         <p>
-          Beyond that, refund requests are handled case by case, in line with Lemon Squeezy’s policy.
-          Write to <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> with the email you
-          subscribed with and your receipt. Nothing in these terms limits your statutory consumer
-          rights.
+          Beyond that, refund requests are handled case by case. Write to{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> with the email you subscribed with
+          and your receipt. Nothing in these terms limits your statutory consumer rights.
         </p>
 
         <h2>8. Knowledge bases and generated content</h2>

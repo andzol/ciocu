@@ -3,7 +3,7 @@
 // non-subscriber can never obtain a key to spend against your Soniox balance.
 //
 //   session cookie  → who they are (verified at sign-in)
-//   Lemon Squeezy   → are they currently paying?
+//   the payment provider → are they currently paying?
 //   Soniox          → mint a single-use, time-boxed temporary key
 //
 // Any failure (no session, not paid, missing config) → 401/403, and the client falls back to the

@@ -1,6 +1,6 @@
 "use client";
 
-// The plan cards shown in Settings. Prices come from /api/plans (i.e. from Lemon Squeezy) — only
+// The plan cards shown in Settings. Prices come from /api/plans (i.e. from the payment provider) — only
 // the names and feature lists live here, because those describe what the code gates, not what the
 // customer is charged.
 

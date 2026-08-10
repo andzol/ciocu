@@ -282,8 +282,8 @@ export default function Home() {
   );
   sendRef.current = sendMessage;
 
-  // Reflect the real plan into the usage meter: read the tier from Lemon Squeezy (via the session)
-  // whenever the user signs in / the tab regains focus (so it updates after paying in the LS tab).
+  // Reflect the real plan into the usage meter: read the tier from the payment provider (via the session)
+  // whenever the user signs in / the tab regains focus (so it updates after paying in the checkout tab).
   useEffect(() => {
     if (!user) {
       void setTier("none");

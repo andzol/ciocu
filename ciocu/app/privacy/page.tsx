@@ -119,9 +119,10 @@ export default function PrivacyPage() {
 
         <h3>Payments</h3>
         <p>
-          Lemon Squeezy handles all payments as merchant of record. They collect and hold your
-          payment and billing details; we never see or store your card. We ask them, using your email
-          address, whether you have an active subscription and what you're entitled to.
+          Rendben, our payment provider, processes payments in USDC (a US-dollar stablecoin) on the
+          Solana network. You pay from your own crypto wallet; Rendben is non-custodial, and we never
+          collect or store card or bank details. We ask Rendben, using your email address, whether you
+          have an active subscription and what you&apos;re entitled to.
         </p>
 
         <h3>Usage</h3>
@@ -178,9 +179,9 @@ export default function PrivacyPage() {
               <td>Syncing memory across your devices</td>
             </tr>
             <tr>
-              <td>Lemon Squeezy</td>
-              <td>Your email, payment and billing details</td>
-              <td>Selling and processing subscriptions</td>
+              <td>Rendben</td>
+              <td>Your email and on-chain payment details</td>
+              <td>Processing USDC subscription payments</td>
             </tr>
           </tbody>
         </table>
@@ -236,7 +237,8 @@ export default function PrivacyPage() {
             reply.
           </li>
           <li>
-            <strong>Invoices</strong> — kept by Lemon Squeezy for as long as tax law requires.
+            <strong>Payment and subscription records</strong> — retained for as long as tax and
+            accounting law requires.
           </li>
         </ul>
 

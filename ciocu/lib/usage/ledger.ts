@@ -10,7 +10,7 @@
 // SCOPE / TRUST: this is the client-side *mechanism* — it drives the meter and the voice→text
 // throttle honestly. It is NOT tamper-proof (a user can edit IndexedDB), and the billing period
 // here rolls over on the calendar month as a placeholder. Server-authoritative enforcement and
-// alignment to the real Lemon Squeezy renewal date come when we add a session + subscription
+// alignment to the payment provider's renewal date come when we add a session + subscription
 // webhook. Until then: correct UX, best-effort accounting.
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
@@ -30,8 +30,8 @@ interface UsageRecord {
   id: "current"; // singleton
   tier: Tier;
   periodStart: number; // epoch ms — when the current billing period began
-  renewsAt: number | null; // epoch ms — the period end (LS renewal); null on free/unknown
-  topupCredits: number; // extra credits bought this period (from LS orders, synced by page.tsx)
+  renewsAt: number | null; // epoch ms — the period end (the provider renewal); null on free/unknown
+  topupCredits: number; // extra credits bought this period (from the provider orders, synced by page.tsx)
   creditsUsed: number; // credits consumed this period (float)
   // raw running totals, kept for transparency / future analytics
   sttSeconds: number;
@@ -52,7 +52,7 @@ export interface UsageSnapshot {
   freeMessagesLeft: number | null; // free tier: messages remaining this period; null when paid
   messageBlocked: boolean; // free tier hit its message cap → prompt to subscribe
   periodStart: number;
-  renewsAt: number | null; // when the allowance resets (LS renewal); null on free/unknown
+  renewsAt: number | null; // when the allowance resets (the provider renewal); null on free/unknown
   raw: { sttSeconds: number; chatMessages: number; turns: number };
 }
 
@@ -99,7 +99,7 @@ function fresh(now: number): UsageRecord {
 }
 
 // Reset the period's counters (and top-ups) when the billing period ends, preserving the tier. When
-// the real LS renewal date is known we roll over on it; otherwise we fall back to the calendar month.
+// the real provider renewal date is known we roll over on it; otherwise we fall back to the calendar month.
 // After a reset renewsAt is cleared — the next /api/subscription sync writes the new renewal.
 function rolledOver(rec: UsageRecord, now: number): UsageRecord {
   const ended = rec.renewsAt
@@ -234,8 +234,8 @@ export async function setTier(tier: Tier): Promise<UsageSnapshot> {
 }
 
 /**
- * Apply the live plan info from Lemon Squeezy (via /api/subscription): tier, next renewal date, and
- * this period's top-up credits. LS is authoritative for all three — the client never grants credits
+ * Apply the live plan info from the payment provider (via /api/subscription): tier, next renewal date, and
+ * this period's top-up credits. the provider is authoritative for all three — the client never grants credits
  * itself. Top-ups raise the allowance immediately, so a maxed-out user drops back below 100%.
  */
 export async function setSubscription(info: {

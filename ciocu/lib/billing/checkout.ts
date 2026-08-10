@@ -8,7 +8,7 @@
 // verifies against (see lib/billing/provider.ts — verification is by customer_email). Rendben must
 // read ?email= to prefill; until it does, the buyer types it and it has to match their Google email.
 //
-// No overlay SDK (the old lemon.js is gone). Checkout opens in a new tab; when the user returns, the
+// No overlay SDK (the previous provider's overlay script is gone). Checkout opens in a new tab; when the user returns, the
 // focus listener in page.tsx re-reads the subscription, so a fresh purchase is reflected.
 
 export const CHECKOUT_BASIC_URL = process.env.NEXT_PUBLIC_CHECKOUT_BASIC_URL ?? "";

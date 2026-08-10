@@ -788,7 +788,7 @@ a.menu-item {
 
 /* ── Plan table (free tier only) ──────────────────────────────────────────────
    Three columns of the same shape, so the eye compares price and features across them rather than
-   reading three separate cards. Prices are injected live from Lemon Squeezy — never hard-coded. */
+   reading three separate cards. Prices are injected live from the payment provider — never hard-coded. */
 .plan-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
