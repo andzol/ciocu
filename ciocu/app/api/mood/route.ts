@@ -6,7 +6,8 @@ import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
-const MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash";
+// Leading "~" is intentional — OpenRouter's id for the moving "latest" alias; without it, a 400.
+const MODEL = process.env.OPENROUTER_MODEL || "~deepseek/deepseek-v4-flash-latest";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 const SYSTEM =

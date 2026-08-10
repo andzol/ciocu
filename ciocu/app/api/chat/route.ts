@@ -7,7 +7,10 @@ import { kvIncr } from "@/lib/stats/kv";
 
 export const runtime = "nodejs";
 
-const MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash";
+// The leading "~" is part of OpenRouter's id for the moving "latest" alias — it tracks the newest
+// v4-flash snapshot (today that's -0731). NOT a typo: without the tilde OpenRouter 400s
+// "not a valid model ID". Pin a dated snapshot via OPENROUTER_MODEL if a "latest" bump regresses.
+const MODEL = process.env.OPENROUTER_MODEL || "~deepseek/deepseek-v4-flash-latest";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 interface ChatMessage {
