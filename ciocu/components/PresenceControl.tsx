@@ -8,6 +8,15 @@ type UIState = "off" | "starting" | "on" | "denied" | "error";
 
 /** Remembers that the dev readout was dismissed, so it stays gone across reloads. */
 const DEVBOX_HIDDEN_KEY = "ciocu.devbox.hidden";
+
+// While she's watching you, the status pill shows a sound-wave + "She listens" the moment you speak.
+// onVoice fires ~60/s with a 0..1 level (see faceAttention VAD_FLOOR/CEIL). Two knobs decide the swap:
+const SPEAK_ON = 0.12; // level that counts as "you're talking" (a bit above the silence floor)
+// ...and the hold: how long you can pause before it drops back to "she sees you". A between-sentence
+// breath is well under a second, so 1.2s keeps the wave up through natural pauses but lets a real
+// stop end it. This is only the VISUAL hold — the mic keeps capturing the whole time she's attending
+// (it closes only when you look away, after faceAttention's 750ms OFF_DEBOUNCE_MS).
+const SPEAK_HOLD_MS = 1200;
 interface DebugInfo {
   faces: number;
   yaw: number;
@@ -50,6 +59,10 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
 ) {
   const [state, setState] = useState<UIState>("off");
   const [attending, setAttending] = useState(false);
+  // Are you speaking right now (with the pause-hold applied)? Drives the wave + "She listens".
+  const [speaking, setSpeaking] = useState(false);
+  const speakingRef = useRef(false);
+  const lastLoudAt = useRef(0);
   // TEMPORARY: ciocu.app is a test environment right now, so the detection + feeling readout is on
   // for everyone — no ?debug needed. Before real users arrive, put the gate back:
   //   typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug")
@@ -89,6 +102,35 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
   } | null>(null);
   const handleRef = useRef<AttentionHandle | null>(null);
 
+  // Wrap the caller's onVoice: still drive the eyes with every frame, but also derive "speaking"
+  // with the pause-hold. Only setState on an actual flip, so this fires ~60/s yet re-renders a
+  // couple of times per utterance. Kept in a ref so the callback handed to startAttention stays
+  // stable while always running the latest closure.
+  const voiceHandler = useRef<(level: number) => void>(() => {});
+  voiceHandler.current = (level: number) => {
+    onVoice(level);
+    const now = performance.now();
+    if (level >= SPEAK_ON) {
+      lastLoudAt.current = now;
+      if (!speakingRef.current) {
+        speakingRef.current = true;
+        setSpeaking(true);
+      }
+    } else if (speakingRef.current && now - lastLoudAt.current >= SPEAK_HOLD_MS) {
+      speakingRef.current = false;
+      setSpeaking(false);
+    }
+  };
+
+  // Looking away closes the mic (onVoice stops firing), so the hold would never expire — force
+  // "speaking" off the moment attention drops.
+  useEffect(() => {
+    if (!attending && speakingRef.current) {
+      speakingRef.current = false;
+      setSpeaking(false);
+    }
+  }, [attending]);
+
   // Poll her feeling for the debug line. 5/s is plenty to watch mood drift and tears well up, and
   // it keeps the engine's 60fps values out of React entirely.
   useEffect(() => {
@@ -112,7 +154,7 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
           setAttending(a);
           onAttention(a);
         },
-        onVoice,
+        onVoice: (level) => voiceHandler.current(level),
         onGaze,
         onStatus: (s) => {
           if (s === "running") setState("on");
@@ -163,11 +205,22 @@ const PresenceControl = forwardRef<PresenceHandle, PresenceProps>(function Prese
 
       {active && (
         <span
-          className={`presence-status${attending ? " presence-status--met" : ""}`}
+          className={`presence-status${attending ? " presence-status--met" : ""}${
+            attending && speaking ? " presence-status--listening" : ""
+          }`}
           role="status"
         >
-          <span className="presence-status-dot" aria-hidden="true" />
-          {attending ? "Eye contact — she sees you" : "Looking for you…"}
+          {attending && speaking ? (
+            <span className="presence-wave" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : (
+            <span className="presence-status-dot" aria-hidden="true" />
+          )}
+          {attending ? (speaking ? "She listens" : "Eye contact — she sees you") : "Looking for you…"}
         </span>
       )}
 

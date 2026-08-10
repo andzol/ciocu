@@ -260,6 +260,38 @@ body:has(.doc-shell) {
   background: var(--cyan);
   box-shadow: 0 0 10px var(--cyan);
 }
+/* Speaking: the dot becomes a little sound-wave. Pure CSS loop (no per-frame React) — it only shows
+   while you're actually talking, so it already tracks your voice; the bars signal "sound", not a
+   real spectrum. See SPEAK_ON / SPEAK_HOLD_MS in PresenceControl for when it appears and how long a
+   pause it rides through. */
+.presence-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.presence-wave i {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(55, 230, 255, 0.55);
+  transform-origin: center;
+  animation: presence-wave 900ms var(--ease-out) infinite;
+}
+.presence-wave i:nth-child(2) { animation-delay: 150ms; }
+.presence-wave i:nth-child(3) { animation-delay: 300ms; }
+.presence-wave i:nth-child(4) { animation-delay: 450ms; }
+@keyframes presence-wave {
+  0%, 100% { transform: scaleY(0.32); opacity: 0.7; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+/* Respect a reduced-motion preference — a steady set of bars instead of a bounce. */
+@media (prefers-reduced-motion: reduce) {
+  .presence-wave i { animation: none; transform: scaleY(0.6); }
+}
 /* Test-only readout: its own box under the status pill, so the raw numbers never stretch the
    status into one very long line. Two stacked rows — detection, then how she feels. */
 .presence-devbox {
