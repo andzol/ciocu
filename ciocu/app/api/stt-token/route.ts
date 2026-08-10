@@ -11,7 +11,7 @@
 
 import type { NextRequest } from "next/server";
 import { readSessionToken, SESSION_COOKIE } from "@/lib/auth/session-cookie";
-import { hasActiveSubscription } from "@/lib/billing/lemonsqueezy";
+import { hasActiveSubscription } from "@/lib/billing/provider";
 
 export const runtime = "nodejs";
 

@@ -6,7 +6,7 @@ import { setProfile, useGoogleUser } from "@/lib/auth/session";
 import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
 import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
-import { CHECKOUT_URL, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
+import { CHECKOUT_ENABLED, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
 import { PLAN_CARDS, formatPrice, loadPlanPrices, type PlanPrice } from "@/lib/billing/plans";
 import { STT_LANGUAGES, setVoiceLang, setVoiceProvider, useVoicePrefs } from "@/lib/voice/prefs";
 
@@ -131,7 +131,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         /* Three plan columns don't fit the default 440px panel — widen only while they're shown. */
-        className={`modal-panel${onFreeTier && CHECKOUT_URL ? " modal-panel--wide" : ""}`}
+        className={`modal-panel${onFreeTier && CHECKOUT_ENABLED ? " modal-panel--wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
@@ -220,7 +220,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             {/* Actions for people already paying: top up this period, and/or move up a plan. Free
                 users don't get a Subscribe button here — they get the plan table below, which shows
                 what they'd be buying before asking them to buy it. */}
-            {(canTopUp || (CHECKOUT_URL && usage?.tier === "basic")) && (
+            {(canTopUp || (CHECKOUT_ENABLED && usage?.tier === "basic")) && (
               <div className="settings-actions">
                 {canTopUp && (
                   <button
@@ -234,12 +234,12 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                     Top up
                   </button>
                 )}
-                {CHECKOUT_URL && usage?.tier === "basic" && (
+                {CHECKOUT_ENABLED && usage?.tier === "basic" && (
                   <button
                     type="button"
                     className={usage.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
                     onClick={() => {
-                      openCheckout(user!.email);
+                      openCheckout("pro", user!.email); // upgrading from Basic → the Pro plan
                       onClose();
                     }}
                   >
@@ -251,7 +251,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           </section>
 
           {/* ── Plans (only while you're on the free tier — signed out or in) ───────── */}
-          {onFreeTier && CHECKOUT_URL && (
+          {onFreeTier && CHECKOUT_ENABLED && (
             <section className="settings-section">
               <h3 className="settings-heading">Plans</h3>
               <div className="plan-grid">
@@ -294,13 +294,14 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                           type="button"
                           className="plan-btn"
                           onClick={() => {
-                            // Checkout needs an email to bind the subscription to, and LS is our
-                            // only customer record — so sign-in has to come first.
+                            // Checkout is verified by email, so sign-in comes first — the paid email
+                            // must match the Google one Ciocu checks (see lib/billing/provider.ts).
                             if (!user) {
                               setHint("Sign in with Google (top left) to subscribe.");
                               return;
                             }
-                            openCheckout(user.email);
+                            // card.tier is "basic" | "pro" here (the free card renders no button).
+                            openCheckout(card.tier as "basic" | "pro", user.email);
                             onClose();
                           }}
                         >

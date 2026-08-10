@@ -7,7 +7,7 @@
 //
 // Public on purpose: this is a price list, and signed-out visitors are exactly who needs it.
 
-import { getPlanPrices } from "@/lib/billing/lemonsqueezy";
+import { getPlanPrices } from "@/lib/billing/provider";
 
 export const runtime = "nodejs";
 

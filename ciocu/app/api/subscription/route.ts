@@ -5,7 +5,7 @@
 
 import type { NextRequest } from "next/server";
 import { readSessionToken, SESSION_COOKIE } from "@/lib/auth/session-cookie";
-import { getSubscriptionInfo } from "@/lib/billing/lemonsqueezy";
+import { getSubscriptionInfo } from "@/lib/billing/provider";
 
 export const runtime = "nodejs";
 

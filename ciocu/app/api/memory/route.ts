@@ -8,7 +8,7 @@
 import type { NextRequest } from "next/server";
 import { Redis } from "@upstash/redis";
 import { readSessionToken, SESSION_COOKIE } from "@/lib/auth/session-cookie";
-import { getSubscriptionTier } from "@/lib/billing/lemonsqueezy";
+import { getSubscriptionTier } from "@/lib/billing/provider";
 import { mergeBundles, type RawBundle } from "@/lib/memory/mergeBundles";
 
 export const runtime = "nodejs";

@@ -20,7 +20,7 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react";
 import { useGoogleUser } from "@/lib/auth/session";
-import { CHECKOUT_URL, openCheckout } from "@/lib/billing/checkout";
+import { CHECKOUT_ENABLED, openCheckout } from "@/lib/billing/checkout";
 import { findSupportBase, loadBases } from "@/lib/knowledge/bases";
 import { toggleKnowledge } from "@/lib/knowledge/enabled";
 import { MARKETING_URL, SUPPORT_EMAIL } from "@/lib/support";
@@ -83,11 +83,11 @@ export default function HamburgerMenu({
       setHint("Sign in with Google to subscribe.");
       return;
     }
-    if (!CHECKOUT_URL) {
+    if (!CHECKOUT_ENABLED) {
       setHint("Checkout isn't configured yet.");
       return;
     }
-    openCheckout(user.email);
+    openCheckout("basic", user.email); // the menu shortcut defaults to the standard plan
     setOpen(false);
   }
 

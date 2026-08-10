@@ -1,95 +1,49 @@
 "use client";
 
-// Opening Lemon Squeezy checkout as an on-site OVERLAY (via lemon.js) instead of a new tab, so the
-// user never leaves ciocu.app and there's nothing to "redirect back" from. On a successful
-// purchase we fire `ciocu:sub-updated`, which the app listens for to refresh the plan/tier.
-// LS is a Merchant of Record (handles EU VAT + holds the customer list).
+// Opens the provider's hosted checkout in a new tab. Provider-neutral; the current provider is
+// Rendben (USDC / Solana). There are three distinct products now — Basic, Pro, and a one-time
+// top-up — each its own checkout URL, so "Get Basic" / "Get Pro" go straight to the right plan.
+//
+// The signed-in email is appended as ?email= so the checkout records the SAME email the server
+// verifies against (see lib/billing/provider.ts — verification is by customer_email). Rendben must
+// read ?email= to prefill; until it does, the buyer types it and it has to match their Google email.
+//
+// No overlay SDK (the old lemon.js is gone). Checkout opens in a new tab; when the user returns, the
+// focus listener in page.tsx re-reads the subscription, so a fresh purchase is reflected.
 
-export const CHECKOUT_URL = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL ?? "";
-// One-time "credit top-up" product's checkout URL. Buying it adds a pack of credits to the current
-// period (counted server-side from LS orders — see lib/billing/lemonsqueezy.ts).
-export const TOPUP_URL = process.env.NEXT_PUBLIC_LEMONSQUEEZY_TOPUP_URL ?? "";
-const LS_JS = "https://assets.lemonsqueezy.com/lemon.js";
+export const CHECKOUT_BASIC_URL = process.env.NEXT_PUBLIC_CHECKOUT_BASIC_URL ?? "";
+export const CHECKOUT_PRO_URL = process.env.NEXT_PUBLIC_CHECKOUT_PRO_URL ?? "";
+export const TOPUP_URL = process.env.NEXT_PUBLIC_CHECKOUT_TOPUP_URL ?? "";
 
-interface LemonSqueezyApi {
-  Setup: (opts: { eventHandler: (e: { event: string }) => void }) => void;
-  Url: { Open: (url: string) => void };
-}
-declare global {
-  interface Window {
-    LemonSqueezy?: LemonSqueezyApi;
-    createLemonSqueezy?: () => void;
+/** True once at least the standard checkout is configured — gates the whole billing UI. */
+export const CHECKOUT_ENABLED = Boolean(CHECKOUT_BASIC_URL);
+
+/** Fired after a return from checkout so listeners (page.tsx) re-read the tier. */
+export const SUB_UPDATED_EVENT = "ciocu:sub-updated";
+
+function withEmail(base: string, email: string): string {
+  if (!base) return "";
+  try {
+    const u = new URL(base);
+    if (email) u.searchParams.set("email", email);
+    return u.toString();
+  } catch {
+    return base; // malformed URL — open it as-is rather than swallow the click
   }
 }
 
-/** Fired on Checkout.Success so listeners (page.tsx) can re-read the tier. */
-export const SUB_UPDATED_EVENT = "ciocu:sub-updated";
-
-let ready: Promise<boolean> | null = null;
-
-function load(): Promise<boolean> {
-  if (ready) return ready;
-  ready = new Promise<boolean>((resolve) => {
-    if (typeof window === "undefined") {
-      resolve(false);
-      return;
-    }
-    const finish = () => {
-      try {
-        window.createLemonSqueezy?.();
-        window.LemonSqueezy?.Setup({
-          eventHandler: (e) => {
-            if (e.event === "Checkout.Success") {
-              window.dispatchEvent(new Event(SUB_UPDATED_EVENT));
-            }
-          },
-        });
-        resolve(!!window.LemonSqueezy);
-      } catch {
-        resolve(false);
-      }
-    };
-    if (window.LemonSqueezy) {
-      finish();
-      return;
-    }
-    let script = document.querySelector<HTMLScriptElement>(`script[src="${LS_JS}"]`);
-    if (!script) {
-      script = document.createElement("script");
-      script.src = LS_JS;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-    script.addEventListener("load", finish);
-    script.addEventListener("error", () => resolve(false));
-  });
-  return ready;
+function openCheckoutTab(base: string, email: string): void {
+  const url = withEmail(base, email);
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
-function buildUrl(base: string, email: string, overlay: boolean): string {
-  const sep = base.includes("?") ? "&" : "?";
-  const embed = overlay ? "embed=1&" : "";
-  return `${base}${sep}${embed}checkout[email]=${encodeURIComponent(email)}`;
+/** Open the checkout for a specific plan, prefilled with `email`. */
+export function openCheckout(tier: "basic" | "pro", email: string): void {
+  openCheckoutTab(tier === "pro" ? CHECKOUT_PRO_URL : CHECKOUT_BASIC_URL, email);
 }
 
-/** Open a LS checkout `base` prefilled with `email`. Overlay if lemon.js loads; new-tab fallback. */
-function openLemon(base: string, email: string): void {
-  if (!base) return;
-  void load().then((ok) => {
-    if (ok && window.LemonSqueezy?.Url?.Open) {
-      window.LemonSqueezy.Url.Open(buildUrl(base, email, true));
-    } else {
-      window.open(buildUrl(base, email, false), "_blank", "noopener,noreferrer");
-    }
-  });
-}
-
-/** Open plan checkout (subscribe / upgrade) prefilled with `email`. */
-export function openCheckout(email: string): void {
-  openLemon(CHECKOUT_URL, email);
-}
-
-/** Open the one-time credit top-up checkout prefilled with `email`. */
+/** Open the one-time top-up checkout, prefilled with `email`. */
 export function openTopup(email: string): void {
-  openLemon(TOPUP_URL, email);
+  openCheckoutTab(TOPUP_URL, email);
 }
