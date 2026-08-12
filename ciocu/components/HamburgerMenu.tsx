@@ -19,8 +19,8 @@ import {
   Compass,
   ShieldCheck,
 } from "@phosphor-icons/react";
-import { useGoogleUser } from "@/lib/auth/session";
-import { CHECKOUT_ENABLED, openCheckout } from "@/lib/billing/checkout";
+import { CHECKOUT_ENABLED } from "@/lib/billing/checkout";
+import { useUsage } from "@/lib/usage/ledger";
 import { findSupportBase, loadBases } from "@/lib/knowledge/bases";
 import { toggleKnowledge } from "@/lib/knowledge/enabled";
 import { MARKETING_URL, SUPPORT_EMAIL } from "@/lib/support";
@@ -47,9 +47,13 @@ export default function HamburgerMenu({
   const [hint, setHint] = useState<string | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const user = useGoogleUser();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const usage = useUsage();
+  // Already paying? Then "Subscribe" is noise — they'd only ever want to change plan, which lives
+  // in Settings (as "Upgrade plan"). Deliberately requires a KNOWN paid tier rather than "not free":
+  // while usage is still null we show it, so a free user is never left without a way to subscribe.
+  const isSubscribed = Boolean(usage && usage.tier !== "none");
 
   useEffect(() => {
     if (!open) return;
@@ -78,17 +82,16 @@ export default function HamburgerMenu({
   }, [open]);
 
   function handleSubscribe() {
-    // Paying requires an identity, so we can attach the payment to a real, verified email.
-    if (!user) {
-      setHint("Sign in with Google to subscribe.");
-      return;
-    }
+    // Open the plan table rather than a checkout. This used to jump straight into the Basic
+    // checkout, which picked the plan FOR the user and hid Pro entirely — wrong now that there are
+    // three products and a comparison table. Settings shows the plans, the prices, and what each
+    // one unlocks; sign-in is prompted there, at the Get button, once they've actually chosen.
     if (!CHECKOUT_ENABLED) {
       setHint("Checkout isn't configured yet.");
       return;
     }
-    openCheckout("basic", user.email); // the menu shortcut defaults to the standard plan
     setOpen(false);
+    onOpenSettings();
   }
 
   function handleSettings() {
@@ -230,13 +233,15 @@ export default function HamburgerMenu({
             <span>Features</span>
           </a>
 
-          {/* Subscribe — gated behind sign-in. */}
-          <button type="button" role="menuitem" className="menu-item" onClick={handleSubscribe}>
-            <span className="menu-item-icon">
-              <Sparkle size={20} weight="regular" />
-            </span>
-            <span>Subscribe</span>
-          </button>
+          {/* Subscribe — opens the plan table in Settings. Hidden once they're actually paying. */}
+          {!isSubscribed && (
+            <button type="button" role="menuitem" className="menu-item" onClick={handleSubscribe}>
+              <span className="menu-item-icon">
+                <Sparkle size={20} weight="regular" />
+              </span>
+              <span>Subscribe</span>
+            </button>
+          )}
 
           {/* Help — expands to the legal page and a way to reach a human. */}
           <button
