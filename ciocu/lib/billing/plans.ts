@@ -27,8 +27,8 @@ const multiple = (a: Exclude<Tier, "none">, b: Exclude<Tier, "none">) => {
   const x = TIER_ALLOWANCE[a] / TIER_ALLOWANCE[b];
   return Number.isInteger(x) ? String(x) : x.toFixed(1);
 };
-const basicMultiple = multiple("basic", "starter");
-const proMultiple = multiple("pro", "basic");
+const standardMultiple = multiple("standard", "basic");
+const proMultiple = multiple("pro", "standard");
 
 // Each line is a real gate in the code, not a promise:
 //  - free messages   → FREE_MESSAGE_LIMIT, enforced in lib/usage/ledger.ts
@@ -48,8 +48,8 @@ export const PLAN_CARDS: PlanCard[] = [
     ],
   },
   {
-    tier: "starter",
-    name: "Starter",
+    tier: "basic",
+    name: "Basic",
     tagline: "Try her properly",
     features: [
       "Everything in Free, and:",
@@ -57,16 +57,16 @@ export const PLAN_CARDS: PlanCard[] = [
       "She remembers you across sessions",
       "Memory synced across your devices",
       "Knowledge bases",
-      energy("starter"),
+      energy("basic"),
     ],
   },
   {
-    tier: "basic",
-    name: "Basic",
+    tier: "standard",
+    name: "Standard",
     tagline: "Talk to her properly",
     features: [
-      "Everything in Starter, and:",
-      `${energy("basic")} — ${basicMultiple}× Starter`,
+      "Everything in Basic, and:",
+      `${energy("standard")} — ${standardMultiple}× Basic`,
       "Room for a daily conversation",
     ],
   },
@@ -75,8 +75,8 @@ export const PLAN_CARDS: PlanCard[] = [
     name: "Pro",
     tagline: "For talking every day",
     features: [
-      "Everything in Basic, and:",
-      `${energy("pro")} — ${proMultiple}× Basic`,
+      "Everything in Standard, and:",
+      `${energy("pro")} — ${proMultiple}× Standard`,
       "Hours of voice every day",
       "Top-ups when you need them",
     ],

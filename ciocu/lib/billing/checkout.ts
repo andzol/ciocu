@@ -11,15 +11,15 @@
 // No overlay SDK (the previous provider's overlay script is gone). Checkout opens in a new tab; when the user returns, the
 // focus listener in page.tsx re-reads the subscription, so a fresh purchase is reflected.
 
-export const CHECKOUT_STARTER_URL = process.env.NEXT_PUBLIC_CHECKOUT_STARTER_URL ?? "";
 export const CHECKOUT_BASIC_URL = process.env.NEXT_PUBLIC_CHECKOUT_BASIC_URL ?? "";
+export const CHECKOUT_STANDARD_URL = process.env.NEXT_PUBLIC_CHECKOUT_STANDARD_URL ?? "";
 export const CHECKOUT_PRO_URL = process.env.NEXT_PUBLIC_CHECKOUT_PRO_URL ?? "";
 export const TOPUP_URL = process.env.NEXT_PUBLIC_CHECKOUT_TOPUP_URL ?? "";
 
 /** Which paid tiers actually have a checkout configured — a plan with no URL isn't offered. */
 export const CHECKOUT_URLS: Record<string, string> = {
-  starter: CHECKOUT_STARTER_URL,
   basic: CHECKOUT_BASIC_URL,
+  standard: CHECKOUT_STANDARD_URL,
   pro: CHECKOUT_PRO_URL,
 };
 
@@ -47,7 +47,7 @@ function openCheckoutTab(base: string, email: string): void {
 }
 
 /** Open the checkout for a specific plan, prefilled with `email`. */
-export function openCheckout(tier: "starter" | "basic" | "pro", email: string): void {
+export function openCheckout(tier: "basic" | "standard" | "pro", email: string): void {
   openCheckoutTab(CHECKOUT_URLS[tier] ?? "", email);
 }
 

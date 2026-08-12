@@ -17,21 +17,23 @@ export const CREDITS_PER_KNOWLEDGE_QUERY = 0.08;
 // Embeddings / recall / storage / eye rendering are on-device or idle → 0 credits.
 
 // ── Tiers ────────────────────────────────────────────────────────────────────────
-export type Tier = "none" | "starter" | "basic" | "pro";
+// These ids match the plan names shown to users and the product names in the payment provider's
+// dashboard, so a receipt, the Settings panel and this file all say the same word.
+export type Tier = "none" | "basic" | "standard" | "pro";
 
 // Allowances hold a flat 40 credits per dollar across all three paid tiers, so the ladder is
 // proportional and nobody is punished for starting small. Derived from the 50%-profit model (§5 of
 // docs/usage-and-pricing.md) and rounded down for buffer.
 export const TIER_ALLOWANCE: Record<Tier, number> = {
   none: 0, // not subscribed
-  starter: 400, // $10 / mo — the "try it properly" tier (~13 hrs voice, or ~3,000 messages)
-  basic: 800, // $20 / mo
+  basic: 400, // $10 / mo — the "try it properly" tier (~13 hrs voice, or ~3,000 messages)
+  standard: 800, // $20 / mo
   pro: 4400, // $95 / mo
 };
 
 /** Plan ladder, low → high. Used to pick the best of several active subscriptions, and to decide
  *  which plans are an upgrade from where you are. */
-export const TIER_RANK: Record<Tier, number> = { none: 0, starter: 1, basic: 2, pro: 3 };
+export const TIER_RANK: Record<Tier, number> = { none: 0, basic: 1, standard: 2, pro: 3 };
 
 // One-time "top-up" pack: buy more credits mid-period without changing plan. Sized to one basic
 // month (~$20 → 800 credits), so a maxed-out basic user who tops up drops from 100% back to ~50%.

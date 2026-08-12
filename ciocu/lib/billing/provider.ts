@@ -24,8 +24,8 @@ function productIdFromUrl(url: string | undefined): string {
     return "";
   }
 }
-const PRODUCT_STARTER = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_STARTER_URL);
 const PRODUCT_BASIC = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_BASIC_URL);
+const PRODUCT_STANDARD = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_STANDARD_URL);
 const PRODUCT_PRO = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_PRO_URL);
 const PRODUCT_TOPUP = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_TOPUP_URL);
 
@@ -99,7 +99,7 @@ function isEntitled(s: RendbenSubscription): boolean {
  *
  * Highest tier wins, not first-found: each plan is a separate Rendben product, and Rendben has no
  * plan-switch, so upgrading leaves the old subscription active alongside the new one. Taking
- * whichever row came back first would then quietly serve a Pro customer their old Starter
+ * whichever row came back first would then quietly serve a Pro customer their old Basic
  * allowance. Never charge for more than you grant.
  */
 function activeSubscription(subs: RendbenSubscription[]): RendbenSubscription | null {
@@ -119,9 +119,9 @@ function activeSubscription(subs: RendbenSubscription[]): RendbenSubscription | 
 function tierOf(sub: RendbenSubscription): Tier {
   const pid = String(sub.productId ?? "");
   if (PRODUCT_PRO && pid === PRODUCT_PRO) return "pro";
+  if (PRODUCT_STANDARD && pid === PRODUCT_STANDARD) return "standard";
   if (PRODUCT_BASIC && pid === PRODUCT_BASIC) return "basic";
-  if (PRODUCT_STARTER && pid === PRODUCT_STARTER) return "starter";
-  return "starter"; // entitled but on an unmapped product → grant the smallest paid tier
+  return "basic"; // entitled but on an unmapped product → grant the smallest paid tier
 }
 
 // The current period runs [renewsAt − 1 month, renewsAt). Top-ups placed at/after this start count
@@ -216,12 +216,12 @@ export async function getPlanPrices(): Promise<PlanPrice[]> {
       interval: p.billingInterval?.unit ?? null,
     };
   };
-  const starter = priceFor(PRODUCT_STARTER);
   const basic = priceFor(PRODUCT_BASIC);
+  const standard = priceFor(PRODUCT_STANDARD);
   const pro = priceFor(PRODUCT_PRO);
   const plans: PlanPrice[] = [
-    { tier: "starter", priceCents: starter.cents, interval: starter.interval },
     { tier: "basic", priceCents: basic.cents, interval: basic.interval },
+    { tier: "standard", priceCents: standard.cents, interval: standard.interval },
     { tier: "pro", priceCents: pro.cents, interval: pro.interval },
   ];
   // Don't cache a total failure — that would keep the panel priceless for the whole TTL after a blip.

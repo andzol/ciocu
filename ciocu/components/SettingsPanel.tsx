@@ -45,8 +45,8 @@ function styleIframeScrollbar(e: React.SyntheticEvent<HTMLIFrameElement>): void 
 // the moment the dashboard changes. The pricing table reads it live instead.
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
-  starter: "Starter",
   basic: "Basic",
+  standard: "Standard",
   pro: "Pro",
 };
 
@@ -296,7 +296,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                             }
                             // Only paid tiers above the current one reach here — `offered` filters
                             // out everything lower, and the current tier renders "Current plan".
-                            openCheckout(card.tier as "starter" | "basic" | "pro", user.email);
+                            openCheckout(card.tier as "basic" | "standard" | "pro", user.email);
                             onClose();
                           }}
                         >
