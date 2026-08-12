@@ -7,7 +7,7 @@
 // Verification is by customer_email, so the checkout MUST record the same email Ciocu knows the user
 // by (their Google sign-in). lib/billing/checkout.ts appends ?email= to the checkout URL for that.
 
-import { CREDITS_PER_TOPUP, type Tier } from "@/lib/usage/rates";
+import { CREDITS_PER_TOPUP, TIER_RANK, type Tier } from "@/lib/usage/rates";
 
 const API = "https://rendben.com/api/v1";
 const API_KEY = process.env.BILLING_API_KEY || "";
@@ -24,6 +24,7 @@ function productIdFromUrl(url: string | undefined): string {
     return "";
   }
 }
+const PRODUCT_STARTER = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_STARTER_URL);
 const PRODUCT_BASIC = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_BASIC_URL);
 const PRODUCT_PRO = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_PRO_URL);
 const PRODUCT_TOPUP = productIdFromUrl(process.env.NEXT_PUBLIC_CHECKOUT_TOPUP_URL);
@@ -89,16 +90,38 @@ async function fetchSubscriptions(email: string): Promise<RendbenSubscription[]>
   }
 }
 
-/** The first currently-entitled subscription row, or null. */
+function isEntitled(s: RendbenSubscription): boolean {
+  return ACTIVE_STATUSES.has(String(s.status ?? "")) || s.entitled === true;
+}
+
+/**
+ * The BEST currently-entitled subscription, or null.
+ *
+ * Highest tier wins, not first-found: each plan is a separate Rendben product, and Rendben has no
+ * plan-switch, so upgrading leaves the old subscription active alongside the new one. Taking
+ * whichever row came back first would then quietly serve a Pro customer their old Starter
+ * allowance. Never charge for more than you grant.
+ */
 function activeSubscription(subs: RendbenSubscription[]): RendbenSubscription | null {
-  return subs.find((s) => ACTIVE_STATUSES.has(String(s.status ?? "")) || s.entitled === true) ?? null;
+  let best: RendbenSubscription | null = null;
+  let bestRank = 0;
+  for (const s of subs) {
+    if (!isEntitled(s)) continue;
+    const rank = TIER_RANK[tierOf(s)] ?? 0;
+    if (rank > bestRank || best === null) {
+      best = s;
+      bestRank = rank;
+    }
+  }
+  return best;
 }
 
 function tierOf(sub: RendbenSubscription): Tier {
   const pid = String(sub.productId ?? "");
   if (PRODUCT_PRO && pid === PRODUCT_PRO) return "pro";
   if (PRODUCT_BASIC && pid === PRODUCT_BASIC) return "basic";
-  return "basic"; // entitled but on an unmapped product → at least basic
+  if (PRODUCT_STARTER && pid === PRODUCT_STARTER) return "starter";
+  return "starter"; // entitled but on an unmapped product → grant the smallest paid tier
 }
 
 // The current period runs [renewsAt − 1 month, renewsAt). Top-ups placed at/after this start count
@@ -193,9 +216,11 @@ export async function getPlanPrices(): Promise<PlanPrice[]> {
       interval: p.billingInterval?.unit ?? null,
     };
   };
+  const starter = priceFor(PRODUCT_STARTER);
   const basic = priceFor(PRODUCT_BASIC);
   const pro = priceFor(PRODUCT_PRO);
   const plans: PlanPrice[] = [
+    { tier: "starter", priceCents: starter.cents, interval: starter.interval },
     { tier: "basic", priceCents: basic.cents, interval: basic.interval },
     { tier: "pro", priceCents: pro.cents, interval: pro.interval },
   ];

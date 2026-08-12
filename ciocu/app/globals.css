@@ -463,9 +463,9 @@ a.menu-item {
 @keyframes modal-rise {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
 }
-/* Wide enough for three plan columns; only applied while they're on screen. */
+/* Wide enough for four plan columns; only applied while they're on screen. */
 .modal-panel--wide {
-  width: min(760px, 100%);
+  width: min(940px, 100%);
 }
 .modal-header {
   display: flex;
@@ -789,15 +789,27 @@ a.menu-item {
 /* ── Plan table (free tier only) ──────────────────────────────────────────────
    Three columns of the same shape, so the eye compares price and features across them rather than
    reading three separate cards. Prices are injected live from the payment provider — never hard-coded. */
+/* The grid sizes itself to how many plans are on offer — a free visitor sees four, someone on
+   Basic sees only Basic + Pro (see `offered` in SettingsPanel). */
 .plan-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   align-items: start;
 }
+.plan-grid--2 { grid-template-columns: repeat(2, 1fr); }
+.plan-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.plan-grid--4 { grid-template-columns: repeat(4, 1fr); }
+/* Four columns need more room than three did, or the feature lines shred into one word per line. */
+@media (max-width: 900px) {
+  .plan-grid--4 { grid-template-columns: repeat(2, 1fr); }
+}
 /* One column each is unreadable on a phone; stack instead. The panel is already full-width there. */
 @media (max-width: 620px) {
-  .plan-grid {
+  .plan-grid,
+  .plan-grid--2,
+  .plan-grid--3,
+  .plan-grid--4 {
     grid-template-columns: 1fr;
   }
 }

@@ -47,15 +47,15 @@ credits = (STT_seconds / 3600 × 30)     ← voice (active streamed audio only)
 
 ## 4. Tiers & allowances
 
-Two subscription tiers. Allowances are derived from the profit target in §5, then **rounded down** for a safety buffer.
+Three subscription tiers, at a flat 40 credits per dollar. Allowances are derived from the profit target in §5, then **rounded down** for a safety buffer.
 
-| | Basic | Pro |
-|---|---|---|
-| **Price** | **$19.99 / mo** | **$99.99 / mo** |
-| Rendben checkout | `ciocu.rendben.com/checkout/prod_GiPAMS8iLO64GI8RtYc` | `ciocu.rendben.com/checkout/prod_EUY2iPOr11e5tQX0Oe8` |
-| **Monthly allowance** | **800 credits** | **4,400 credits** |
-| ≈ voice-heavy use | ~24 hrs/mo (~45 min/day) | ~125 hrs/mo (~4 hr/day) |
-| ≈ text-heavy use | ~6,000+ messages | ~34,000 messages |
+| | Starter | Basic | Pro |
+|---|---|---|---|
+| **Price** | **$10 / mo** | **$20 / mo** | **$95 / mo** |
+| Rendben checkout | `.../prod_olxcRFQdF9NAJonbr1A` | `.../prod_GiPAMS8iLO64GI8RtYc` | `.../prod_EUY2iPOr11e5tQX0Oe8` |
+| **Monthly allowance** | **400 credits** | **800 credits** | **4,400 credits** |
+| ≈ voice-heavy use | ~13 hrs/mo (~26 min/day) | ~24 hrs/mo (~45 min/day) | ~125 hrs/mo (~4 hr/day) |
+| ≈ text-heavy use | ~3,000 messages | ~6,000+ messages | ~34,000 messages |
 
 Users can mix voice and text freely — it's one credit pool that both draw from.
 
@@ -70,21 +70,21 @@ Target: **owner keeps 50% of the gross sticker price** as profit, after the paym
 **Cost budget formula:**
 
 ```
-vendor_cost_budget = 0.45 × price − $0.50
-                   = price − (50% profit) − (5% × price + $0.50 LS fee)
+vendor_cost_budget = price − (50% profit) − (0.5% × price provider fee)
+                   = 0.495 × price
 ```
 
-**Worked example:**
+**Worked example** (allowances are the flat 40 credits/$ ladder, not the raw budget):
 
-| | Basic ($19.99) | Pro ($99.99) |
-|---|---|---|
-| LS fee (5% + $0.50) | $1.50 | $5.50 |
-| **Profit (50% of price)** | **$9.99** | **$49.99** |
-| Vendor cost budget | $8.50 | $44.50 |
-| Budget in credits (÷ $0.01) | 850 | 4,450 |
-| **Allowance (rounded down)** | **800** | **4,400** |
+| | Starter ($10) | Basic ($20) | Pro ($95) |
+|---|---|---|---|
+| Provider fee (0.5%) | $0.05 | $0.10 | $0.48 |
+| Budget at exactly 50% profit | $4.95 | $9.90 | $47.02 |
+| Budget in credits (÷ $0.01) | 495 | 990 | 4,702 |
+| **Allowance (rounded down)** | **400** | **800** | **4,400** |
+| **Worst-case profit** (allowance fully burned) | **$5.95 (59%)** | **$11.90 (59%)** | **$50.53 (53%)** |
 
-Check: `19.99 − 1.50 − 8.50 = 9.99` ✓ and `99.99 − 5.50 − 44.50 = 49.99` ✓
+Moving off a Merchant of Record cut the payment fee from ~5% + $0.50 to 0.5%, so every tier now clears the 50% target with room to spare even if a user burns their whole allowance. **But** that fee saving is not free money: VAT/sales-tax handling and seller-of-record duties came back in-house with it (see the fee note above), and that carries its own cost once it's properly handled.
 
 ---
 
@@ -101,7 +101,7 @@ Check: `19.99 − 1.50 − 8.50 = 9.99` ✓ and `99.99 − 5.50 − 44.50 = 49.9
 - **Presentation:** show a single "energy" meter that drains, or express limits as "~X hours of voice + effectively unlimited text." Never expose raw token counts.
 - **Overage:** when the meter runs low, **throttle voice → text-only** rather than cutting her off — she never goes fully silent. (Alternative: "buy more credits" top-ups.)
 - **Rollover:** **none.** Credits reset monthly. Keeps our cost exposure predictable.
-- **Positioning option:** since text is so cheap, consider **Basic = text-first with a voice cap** and **Pro = voice-heavy/unlimited**, aligning cost to price even more tightly.
+- **Positioning option:** since text is so cheap, consider a text-first lower tier with a voice cap and **Pro = voice-heavy/unlimited**, aligning cost to price even more tightly. (Starter deliberately does NOT cap voice — voice is what a trial needs to demonstrate.)
 
 ---
 
@@ -109,7 +109,7 @@ Check: `19.99 − 1.50 − 8.50 = 9.99` ✓ and `99.99 − 5.50 − 44.50 = 49.9
 
 - [ ] Confirm Soniox real-time streaming rate (currently ⚠️ $0.30/hr).
 - [ ] Confirm DeepSeek V4 Pro token price on OpenRouter.
-- [x] Basic / Pro / top-up products created in Rendben (`prod_GiPAMS…` $20, `prod_EUY2…` $95, `prod_B996…` $20 one-time), each with its own checkout URL.
+- [x] Starter / Basic / Pro / top-up products created in Rendben (`prod_olxcRF…` $10, `prod_GiPAMS…` $20, `prod_EUY2…` $95, `prod_B996…` $20 one-time), each with its own checkout URL.
 - [x] Build `lib/usage` credit ledger — `lib/usage/rates.ts` (rate card) + `lib/usage/ledger.ts`
   (IndexedDB `ciocu-usage`, monthly rollover, drain, `canUseVoice()` throttle, `useUsage()` hook).
   Text path is wired in `app/page.tsx` (`recordTurn` on send, `recordChatMessage` on reply) and

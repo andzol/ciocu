@@ -5,7 +5,7 @@ import { X, SignOut, Info, Lightning } from "@phosphor-icons/react";
 import { setProfile, useGoogleUser } from "@/lib/auth/session";
 import { toggleKnowledge, useEnabledKnowledge } from "@/lib/knowledge/enabled";
 import { useUsage } from "@/lib/usage/ledger";
-import { FREE_MESSAGE_LIMIT } from "@/lib/usage/rates";
+import { FREE_MESSAGE_LIMIT, TIER_RANK, type Tier } from "@/lib/usage/rates";
 import { CHECKOUT_ENABLED, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
 import { PLAN_CARDS, formatPrice, loadPlanPrices, type PlanPrice } from "@/lib/billing/plans";
 import { STT_LANGUAGES, setVoiceLang, setVoiceProvider, useVoicePrefs } from "@/lib/voice/prefs";
@@ -45,6 +45,7 @@ function styleIframeScrollbar(e: React.SyntheticEvent<HTMLIFrameElement>): void 
 // the moment the dashboard changes. The pricing table reads it live instead.
 const TIER_LABEL: Record<string, string> = {
   none: "Free",
+  starter: "Starter",
   basic: "Basic",
   pro: "Pro",
 };
@@ -62,12 +63,17 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const [hint, setHint] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, PlanPrice> | null>(null);
 
-  // Anyone who isn't paying sees the plans — signed out or signed in, the choice is the same one.
-  const onFreeTier = usage?.tier === "none";
+  // The plan table is an UPGRADE table: it shows the tier you're on plus everything above it, and
+  // nothing below. That's not cosmetic — each plan is a separate product and the provider has no
+  // plan-switch, so "buying" a cheaper plan while subscribed would open a SECOND subscription and
+  // bill you twice. Pro has nothing above it, so it sees no table at all.
+  const currentTier: Tier = usage?.tier ?? "none";
+  const showPlans = CHECKOUT_ENABLED && currentTier !== "pro";
+  const offered = PLAN_CARDS.filter((c) => TIER_RANK[c.tier] >= TIER_RANK[currentTier]);
 
   // Live prices for the plan table (the provider is the source of truth; see lib/billing/plans.ts).
   useEffect(() => {
-    if (!open || !onFreeTier || prices) return;
+    if (!open || !showPlans || prices) return;
     let cancelled = false;
     void loadPlanPrices().then((p) => {
       if (!cancelled) setPrices(p);
@@ -75,7 +81,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     return () => {
       cancelled = true;
     };
-  }, [open, onFreeTier, prices]);
+  }, [open, showPlans, prices]);
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +137,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         /* Three plan columns don't fit the default 440px panel — widen only while they're shown. */
-        className={`modal-panel${onFreeTier && CHECKOUT_ENABLED ? " modal-panel--wide" : ""}`}
+        className={`modal-panel${showPlans ? " modal-panel--wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
@@ -217,47 +223,35 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
               </>
             )}
 
-            {/* Actions for people already paying: top up this period, and/or move up a plan. Free
-                users don't get a Subscribe button here — they get the plan table below, which shows
-                what they'd be buying before asking them to buy it. */}
-            {(canTopUp || (CHECKOUT_ENABLED && usage?.tier === "basic")) && (
+            {/* Top up this period's credits. There's no "Upgrade plan" button any more — with three
+                paid tiers it couldn't say WHICH plan; the table below names them and their prices. */}
+            {canTopUp && (
               <div className="settings-actions">
-                {canTopUp && (
-                  <button
-                    type="button"
-                    className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
-                    onClick={() => {
-                      openTopup(user!.email);
-                      onClose();
-                    }}
-                  >
-                    Top up
-                  </button>
-                )}
-                {CHECKOUT_ENABLED && usage?.tier === "basic" && (
-                  <button
-                    type="button"
-                    className={usage.voiceThrottled && canTopUp ? "btn-ghost" : "btn-primary"}
-                    onClick={() => {
-                      openCheckout("pro", user!.email); // upgrading from Basic → the Pro plan
-                      onClose();
-                    }}
-                  >
-                    Upgrade plan
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={usage?.voiceThrottled ? "btn-primary" : "btn-ghost"}
+                  onClick={() => {
+                    openTopup(user!.email);
+                    onClose();
+                  }}
+                >
+                  Top up
+                </button>
               </div>
             )}
           </section>
 
-          {/* ── Plans (only while you're on the free tier — signed out or in) ───────── */}
-          {onFreeTier && CHECKOUT_ENABLED && (
+          {/* ── Plans — your tier and everything above it (see `offered`) ───────────── */}
+          {showPlans && (
             <section className="settings-section">
-              <h3 className="settings-heading">Plans</h3>
-              <div className="plan-grid">
-                {PLAN_CARDS.map((card) => {
-                  const isCurrent = card.tier === "none";
-                  const live = card.tier === "none" ? null : prices?.[card.tier];
+              <h3 className="settings-heading">
+                {currentTier === "none" ? "Plans" : "Upgrade"}
+              </h3>
+              <div className={`plan-grid plan-grid--${offered.length}`}>
+                {offered.map((card) => {
+                  const isCurrent = card.tier === currentTier;
+                  const isFree = card.tier === "none";
+                  const live = isFree ? null : prices?.[card.tier];
                   const per = live?.interval === "year" ? "/yr" : "/mo";
                   return (
                     <div
@@ -268,7 +262,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                       <p className="plan-tagline">{card.tagline}</p>
 
                       <p className="plan-price">
-                        {isCurrent ? (
+                        {isFree ? (
                           <>
                             <span className="plan-price-amount">$0</span>
                           </>
@@ -300,8 +294,9 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                               setHint("Sign in with Google (top left) to subscribe.");
                               return;
                             }
-                            // card.tier is "basic" | "pro" here (the free card renders no button).
-                            openCheckout(card.tier as "basic" | "pro", user.email);
+                            // Only paid tiers above the current one reach here — `offered` filters
+                            // out everything lower, and the current tier renders "Current plan".
+                            openCheckout(card.tier as "starter" | "basic" | "pro", user.email);
                             onClose();
                           }}
                         >

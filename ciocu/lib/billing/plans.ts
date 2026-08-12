@@ -21,12 +21,14 @@ export interface PlanCard {
 
 const energy = (t: Exclude<Tier, "none">) => `${TIER_ALLOWANCE[t].toLocaleString()} energy a month`;
 
-// Pro is 5.5× Basic, and rounding that to "6×" would advertise more than the plan gives. Keep the
-// half, drop a trailing ".0" — never round a claim in our own favour.
-const proMultiple = (() => {
-  const x = TIER_ALLOWANCE.pro / TIER_ALLOWANCE.basic;
+// Ratios between tiers, e.g. Pro is 5.5× Basic. Rounding 5.5 to "6×" would advertise more than the
+// plan gives, so keep the half and drop a trailing ".0" — never round a claim in our own favour.
+const multiple = (a: Exclude<Tier, "none">, b: Exclude<Tier, "none">) => {
+  const x = TIER_ALLOWANCE[a] / TIER_ALLOWANCE[b];
   return Number.isInteger(x) ? String(x) : x.toFixed(1);
-})();
+};
+const basicMultiple = multiple("basic", "starter");
+const proMultiple = multiple("pro", "basic");
 
 // Each line is a real gate in the code, not a promise:
 //  - free messages   → FREE_MESSAGE_LIMIT, enforced in lib/usage/ledger.ts
@@ -46,16 +48,26 @@ export const PLAN_CARDS: PlanCard[] = [
     ],
   },
   {
-    tier: "basic",
-    name: "Basic",
-    tagline: "Talk to her properly",
+    tier: "starter",
+    name: "Starter",
+    tagline: "Try her properly",
     features: [
       "Everything in Free, and:",
       "Real-time voice",
       "She remembers you across sessions",
       "Memory synced across your devices",
       "Knowledge bases",
-      energy("basic"),
+      energy("starter"),
+    ],
+  },
+  {
+    tier: "basic",
+    name: "Basic",
+    tagline: "Talk to her properly",
+    features: [
+      "Everything in Starter, and:",
+      `${energy("basic")} — ${basicMultiple}× Starter`,
+      "Room for a daily conversation",
     ],
   },
   {
@@ -65,7 +77,7 @@ export const PLAN_CARDS: PlanCard[] = [
     features: [
       "Everything in Basic, and:",
       `${energy("pro")} — ${proMultiple}× Basic`,
-      "Room for daily voice",
+      "Hours of voice every day",
       "Top-ups when you need them",
     ],
   },
