@@ -73,8 +73,9 @@ function headers() {
   return { Authorization: `Bearer ${API_KEY}`, Accept: "application/json" };
 }
 
-// GET /subscriptions?customer_email — we deliberately omit the product_id filter (Rendben's filter
-// 400s on valid ids as of this writing) and read productId off each returned row instead.
+// GET /subscriptions?customer_email — deliberately UNfiltered. Rendben's product_id filter works,
+// but we want every plan in one call so activeSubscription() can pick the highest tier; filtering
+// would mean one request per plan and would hide exactly the overlap we need to see.
 async function fetchSubscriptions(email: string): Promise<RendbenSubscription[]> {
   if (!API_KEY || !email) return [];
   try {
@@ -132,14 +133,23 @@ function periodStart(renewsAt: number): number {
   return d.getTime();
 }
 
-/** Total top-up credits from paid top-up orders placed since `sinceMs`. */
+/**
+ * Total top-up credits from paid top-up orders placed since `sinceMs`.
+ *
+ * Filtered to the top-up product server-side: a page holds 50 rows, so asking for *all* paid orders
+ * and sifting client-side meant a customer with a long purchase history could push their recent
+ * top-ups off page one and silently lose credits they'd paid for. Narrowing to one product makes
+ * overflow implausible (50 top-ups inside a single billing period). Still keeps the client-side
+ * product/status checks — a filter is a request, not a guarantee.
+ */
 async function topupCreditsSince(email: string, sinceMs: number): Promise<number> {
   if (!API_KEY || !email || !PRODUCT_TOPUP) return 0;
   try {
-    const res = await fetch(`${API}/orders?customer_email=${encodeURIComponent(email)}&status=paid`, {
-      headers: headers(),
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${API}/orders?customer_email=${encodeURIComponent(email)}` +
+        `&product_id=${encodeURIComponent(PRODUCT_TOPUP)}&status=paid`,
+      { headers: headers(), cache: "no-store" },
+    );
     if (!res.ok) return 0;
     const body = await res.json();
     const orders: RendbenOrder[] = Array.isArray(body?.orders) ? body.orders : [];
