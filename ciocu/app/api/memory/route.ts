@@ -2,6 +2,11 @@
 // subscription (free = this-device-only). GET pulls the stored bundle; PUT merges a device's push
 // with what's stored (server-side union) so concurrent devices never clobber each other.
 //
+// PUT ?mode=replace overwrites instead of unioning. Union is right for ordinary syncing but makes
+// deletion impossible, which quietly broke "Replace everything" in the memory import: the device
+// wiped itself, reloaded, pulled the untouched server copy straight back, and pushed the restored
+// state up again. Replacing is only ever an explicit, confirmed user action.
+//
 // Provisioning: set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (Vercel Upstash integration).
 // Without them the route returns 503 and the client simply stays local-only.
 
@@ -54,6 +59,12 @@ export async function PUT(req: NextRequest) {
   }
   if (!incoming || incoming.app !== "ciocu" || !Array.isArray(incoming.blocks)) {
     return Response.json({ error: "not a memory bundle" }, { status: 400 });
+  }
+
+  // ?mode=replace — the user chose to forget. Skip the union and store exactly what arrived.
+  if (req.nextUrl.searchParams.get("mode") === "replace") {
+    await db.set(g.key, incoming);
+    return Response.json({ bundle: incoming, replaced: true });
   }
 
   const existing = await db.get<RawBundle>(g.key);

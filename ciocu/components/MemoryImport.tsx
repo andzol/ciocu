@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Brain, Warning } from "@phosphor-icons/react";
+import { pushToServer } from "@/lib/memory/sync";
 import {
   isBundle,
   mergeBundle,
@@ -25,7 +26,12 @@ type Phase =
   | { at: "idle" }
   | { at: "confirm"; bundle: MemoryBundle; summary: BundleSummary }
   | { at: "working"; frac: number; label: string }
-  | { at: "done"; mode: "merge" | "replace"; added: { threads: number; messages: number; blocks: number } }
+  | {
+      at: "done";
+      mode: "merge" | "replace";
+      added: { threads: number; messages: number; blocks: number };
+      syncStale?: boolean;
+    }
   | { at: "error"; message: string };
 
 function plural(n: number, one: string, many = one + "s") {
@@ -68,8 +74,18 @@ export default function MemoryImport({ onLids }: { onLids?: (v: number) => void 
           mode,
           onProgress: ({ frac, label }) => setPhase({ at: "working", frac, label }),
         });
+
+        // A local wipe alone doesn't hold: the next mount pulls the server bundle and merges it
+        // straight back, so the forgotten memories return and are then pushed up again. Overwrite
+        // the synced copy here, BEFORE the reload, so the pull finds what the user actually chose.
+        let syncStale = false;
+        if (mode === "replace") {
+          setPhase({ at: "working", frac: 0.9, label: "Letting her other devices know" });
+          syncStale = (await pushToServer("replace")) === "failed";
+        }
+
         onLids?.(1);
-        setPhase({ at: "done", mode, added });
+        setPhase({ at: "done", mode, added, syncStale });
       } catch {
         onLids?.(1);
         setPhase({ at: "error", message: "Something went wrong while saving those memories." });
@@ -124,19 +140,19 @@ export default function MemoryImport({ onLids }: { onLids?: (v: number) => void 
               forgets what&apos;s on this device first — that can&apos;t be undone.
             </p>
             <div className="import-actions">
-              <button type="button" className="btn-ghost" onClick={() => setPhase({ at: "idle" })}>
+              <button type="button" className="import-btn import-btn--quiet" onClick={() => setPhase({ at: "idle" })}>
                 Cancel
               </button>
               <button
                 type="button"
-                className="btn-ghost import-danger"
+                className="import-btn import-btn--danger"
                 onClick={() => run(phase.bundle, "replace")}
               >
                 Replace everything
               </button>
               <button
                 type="button"
-                className="plan-btn"
+                className="import-btn import-btn--primary"
                 onClick={() => run(phase.bundle, "merge")}
               >
                 Merge
@@ -183,8 +199,14 @@ export default function MemoryImport({ onLids }: { onLids?: (v: number) => void 
                 ? "She already remembered everything in that file."
                 : "She has them now."}
             </p>
+            {phase.syncStale && (
+              <p className="import-note import-note--warn">
+                {"This device is updated, but the synced copy couldn't be reached — the old " +
+                  "memories may return next time it syncs. Try again once you're back online."}
+              </p>
+            )}
             <div className="import-actions">
-              <button type="button" className="plan-btn" onClick={finish}>
+              <button type="button" className="import-btn import-btn--primary" onClick={finish}>
                 Continue
               </button>
             </div>
@@ -198,7 +220,7 @@ export default function MemoryImport({ onLids }: { onLids?: (v: number) => void 
             </h2>
             <p className="import-note">{phase.message}</p>
             <div className="import-actions">
-              <button type="button" className="plan-btn" onClick={() => setPhase({ at: "idle" })}>
+              <button type="button" className="import-btn import-btn--primary" onClick={() => setPhase({ at: "idle" })}>
                 Close
               </button>
             </div>

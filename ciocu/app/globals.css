@@ -1481,19 +1481,73 @@ a.menu-item {
   color: var(--text);
   font-weight: 600;
 }
+/* One action row, three weights of the SAME button — the dialog borrowed .plan-btn before, which
+   is a full-width plan-card CTA, so it could never share a line and the row wrapped. Dismiss sits
+   left, the two commitments group right, which is the arrangement people already expect. */
 .import-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
-/* Destructive, so it reads as caution rather than as the accent action. */
-.import-danger {
+.import-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out),
+    border-color 0.15s var(--ease-out);
+}
+/* Walking away — quietest, and pushed away from the two that actually do something. */
+.import-btn--quiet {
+  margin-right: auto;
+  border-color: var(--border);
+}
+.import-btn--quiet:hover {
+  color: var(--text);
+  border-color: var(--border-cyan);
+}
+/* Destructive: amber, so it reads as caution rather than as the accent action. */
+.import-btn--danger {
   border-color: rgba(255, 207, 112, 0.45);
   color: #ffcf70;
 }
-.import-danger:hover {
+.import-btn--danger:hover {
+  background: #ffcf70;
   border-color: #ffcf70;
+  color: #2a1c00;
+}
+.import-btn--primary {
+  border-color: var(--border-cyan);
+  color: var(--cyan);
+  font-weight: 700;
+}
+.import-btn--primary:hover {
+  background: var(--cyan);
+  color: #04252c;
+}
+/* Too narrow for one row: stack full-width in the SAME sequence, Cancel → Replace → Merge, so the
+   primary is last whichever way the row runs. Plain column, not column-reverse: reversing would put
+   Merge on top but leave the tab order running the other way, and a focus ring jumping bottom-to-top
+   through a modal isn't worth the small gain from promoting the primary. */
+@media (max-width: 470px) {
+  .import-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .import-btn--quiet {
+    margin-right: 0;
+  }
 }
 .import-bar {
   height: 6px;
@@ -1507,4 +1561,7 @@ a.menu-item {
   border-radius: 999px;
   background: var(--cyan);
   transition: width 0.35s var(--ease-out);
+}
+.import-note--warn {
+  color: #ffcf70;
 }

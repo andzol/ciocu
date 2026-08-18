@@ -19,16 +19,30 @@ export async function pullFromServer(): Promise<boolean> {
   }
 }
 
-export async function pushToServer(): Promise<void> {
+/**
+ * "ok" — the server holds our push. "skipped" — we aren't eligible (signed out, free tier, sync
+ * unconfigured), which is a normal state, not a fault. "failed" — we ARE eligible and it didn't
+ * land.
+ *
+ * The caller only needs the difference after a *replace*: a replace that failed while sync is live
+ * means the server still has what the user asked to forget, and the next load will pull it back.
+ * That's worth saying out loud rather than pretending the deletion stuck.
+ */
+export type PushResult = "ok" | "skipped" | "failed";
+
+export async function pushToServer(mode: "merge" | "replace" = "merge"): Promise<PushResult> {
   try {
     const bundle = await serializeMemory();
-    await fetch("/api/memory", {
+    const res = await fetch(`/api/memory${mode === "replace" ? "?mode=replace" : ""}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bundle),
     });
+    if (res.ok) return "ok";
+    // 401 not signed in · 402 not subscribed · 503 store not provisioned — all "stay local".
+    return res.status === 401 || res.status === 402 || res.status === 503 ? "skipped" : "failed";
   } catch {
-    /* best-effort */
+    return "failed";
   }
 }
 
