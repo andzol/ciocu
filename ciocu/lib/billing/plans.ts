@@ -21,14 +21,16 @@ export interface PlanCard {
 
 const energy = (t: Exclude<Tier, "none">) => `${TIER_ALLOWANCE[t].toLocaleString()} energy a month`;
 
-// Ratios between tiers, e.g. Pro is 5.5× Basic. Rounding 5.5 to "6×" would advertise more than the
-// plan gives, so keep the half and drop a trailing ".0" — never round a claim in our own favour.
+// Ratios between tiers. Both paid comparisons anchor on Basic, the entry tier, so the ladder reads
+// on one scale (2× and 11×) rather than each step being measured against the one below it.
+// A non-integer ratio keeps its half — rounding 5.5 up to "6×" would advertise more than the plan
+// gives, and a claim should never round in our own favour.
 const multiple = (a: Exclude<Tier, "none">, b: Exclude<Tier, "none">) => {
   const x = TIER_ALLOWANCE[a] / TIER_ALLOWANCE[b];
   return Number.isInteger(x) ? String(x) : x.toFixed(1);
 };
 const standardMultiple = multiple("standard", "basic");
-const proMultiple = multiple("pro", "standard");
+const proMultiple = multiple("pro", "basic");
 
 // Each line is a real gate in the code, not a promise:
 //  - free messages   → FREE_MESSAGE_LIMIT, enforced in lib/usage/ledger.ts
@@ -76,7 +78,7 @@ export const PLAN_CARDS: PlanCard[] = [
     tagline: "For talking every day",
     features: [
       "Everything in Standard, and:",
-      `${energy("pro")} — ${proMultiple}× Standard`,
+      `${energy("pro")} — ${proMultiple}× Basic`,
       "Hours of voice every day",
       "Top-ups when you need them",
     ],
