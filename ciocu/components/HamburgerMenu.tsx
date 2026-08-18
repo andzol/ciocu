@@ -21,8 +21,6 @@ import {
 } from "@phosphor-icons/react";
 import { CHECKOUT_ENABLED } from "@/lib/billing/checkout";
 import { useUsage } from "@/lib/usage/ledger";
-import { findSupportBase, loadBases } from "@/lib/knowledge/bases";
-import { toggleKnowledge } from "@/lib/knowledge/enabled";
 import { MARKETING_URL, SUPPORT_EMAIL } from "@/lib/support";
 
 interface Item {
@@ -100,17 +98,16 @@ export default function HamburgerMenu({
   }
 
   /**
-   * Support = ask Ciocu herself. Switch her own docs on (free — never costs energy) and open the
-   * chat straight away, so the user can just type the question. The chat opens either way; the
-   * base is a best-effort enrichment.
+   * Support = ask Ciocu herself: just open the chat and let the user type the question.
+   *
+   * This used to switch on a separate "ciocu-support" knowledge base first. That base no longer
+   * exists — knowledge was consolidated into one curated index — so there is nothing to toggle.
+   * She answers support questions from her own knowledge; if the support material is ever added to
+   * the index it will simply start informing these answers with no change here.
    */
   function handleSupport() {
     setOpen(false);
     onOpenChat();
-    void loadBases().then((bases) => {
-      const support = findSupportBase(bases);
-      if (support) toggleKnowledge(support.id, true);
-    });
   }
 
   async function handleDownload() {

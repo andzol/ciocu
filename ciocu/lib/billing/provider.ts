@@ -171,6 +171,23 @@ export async function hasActiveSubscription(email: string): Promise<boolean> {
   return activeSubscription(await fetchSubscriptions(email)) !== null;
 }
 
+// Entitlement, cached briefly. /api/chat needs this on EVERY message to decide whether to consult
+// the knowledge index; a provider round-trip per message would add latency to every reply and burn
+// rate limit re-answering a question whose answer changes about once a month. A minute is long
+// enough to cover a conversation, short enough that a fresh subscription is honoured almost at once.
+const ENTITLED_TTL = 60_000;
+const entitledCache = new Map<string, { at: number; ok: boolean }>();
+
+/** hasActiveSubscription with a short per-instance cache — for per-request hot paths. */
+export async function isEntitledCached(email: string): Promise<boolean> {
+  const hit = entitledCache.get(email);
+  if (hit && Date.now() - hit.at < ENTITLED_TTL) return hit.ok;
+  const ok = await hasActiveSubscription(email);
+  if (entitledCache.size > 500) entitledCache.clear(); // bound it; entries are cheap to rebuild
+  entitledCache.set(email, { at: Date.now(), ok });
+  return ok;
+}
+
 /** The plan tier the email is currently entitled to. */
 export async function getSubscriptionTier(email: string): Promise<Tier> {
   const sub = activeSubscription(await fetchSubscriptions(email));

@@ -2,7 +2,9 @@
 // browser bundle. Streams the model's reply back as plain-text token deltas.
 
 import type { NextRequest } from "next/server";
-import { allowedBaseIds, retrieve } from "@/lib/knowledge/llamacloud";
+import { retrieveKnowledge } from "@/lib/knowledge/llamacloud";
+import { readSessionToken, SESSION_COOKIE } from "@/lib/auth/session-cookie";
+import { isEntitledCached } from "@/lib/billing/provider";
 import { kvIncr } from "@/lib/stats/kv";
 
 export const runtime = "nodejs";
@@ -65,14 +67,10 @@ export async function POST(req: NextRequest) {
   if (!key) return new Response("Ciocu is missing her API key (OPENROUTER_API_KEY).", { status: 500 });
 
   let messages: ChatMessage[];
-  let knowledge: string[] = [];
   let mood: Mood | null = null;
   try {
     const body = await req.json();
     messages = body.messages;
-    if (Array.isArray(body.knowledge)) {
-      knowledge = body.knowledge.filter((x: unknown) => typeof x === "string");
-    }
     const m = body.mood;
     if (m && Number.isFinite(m.valence) && Number.isFinite(m.arousal)) {
       mood = { valence: m.valence, arousal: m.arousal, bond: Number(m.bond) || 0 };
@@ -89,15 +87,17 @@ export async function POST(req: NextRequest) {
     messages = [messages[0], { role: "system", content: moodLine(mood) }, ...messages.slice(1)];
   }
 
-  // Knowledge: retrieve reference chunks from each enabled base and inject them into her context.
-  // The ids come from the client's localStorage, so they're a request, not permission — a withheld
-  // base stays withheld even for someone who toggled it on before it was hidden.
-  knowledge = await allowedBaseIds(knowledge);
-  if (knowledge.length > 0) {
+  // Knowledge: consult the curated index and fold what's relevant into her context.
+  //
+  // Entitlement is decided HERE, from the session — not from anything the client sends. The old
+  // model took a list of base ids out of localStorage, which meant the browser was asserting its own
+  // access; now there is nothing to assert. Signed out or unsubscribed simply means she answers from
+  // what she already knows.
+  const session = readSessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+  if (session && (await isEntitledCached(session.email))) {
     const query = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (query.trim()) {
-      const perBase = await Promise.all(knowledge.map((id) => retrieve(id, query, 4)));
-      const chunks = perBase.flat().slice(0, 8);
+      const chunks = await retrieveKnowledge(query, 8);
       if (chunks.length > 0) {
         const block =
           "Reference knowledge you can draw on (use it naturally only when relevant; never cite it as a source or say 'according to'):\n" +

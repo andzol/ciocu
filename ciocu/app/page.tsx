@@ -32,8 +32,6 @@ import {
   useUsage,
 } from "@/lib/usage/ledger";
 import type { Tier } from "@/lib/usage/rates";
-import { getEnabledKnowledge } from "@/lib/knowledge/enabled";
-import { billableCount, loadBases } from "@/lib/knowledge/bases";
 import { ensureClusters } from "@/lib/memory/clusters";
 import { SUB_UPDATED_EVENT } from "@/lib/billing/checkout";
 import { DEFAULT_CAPTIONS, pickCaptions } from "@/lib/i18n/captions";
@@ -215,7 +213,6 @@ export default function Home() {
       applyMessages([...history, { role: "ciocu", text: "" }]);
 
       let reply = "";
-      const activeKnowledge = getEnabledKnowledge();
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -224,7 +221,6 @@ export default function Home() {
           // she was feeling anything — which is exactly why she read as caring-in-theory only.
           body: JSON.stringify({
             messages: llmMessages,
-            knowledge: activeKnowledge,
             mood: moodRef.current,
           }),
         });
@@ -248,13 +244,9 @@ export default function Home() {
         setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
         persist("ciocu", reply);
         void recordChatMessage(); // meter her reply against the monthly allowance
-        // Meter only the bases that cost energy — the support base is free to consult.
-        if (activeKnowledge.length) {
-          void loadBases().then((bases) => {
-            const billable = billableCount(activeKnowledge, bases);
-            if (billable > 0) void recordKnowledgeQueries(billable);
-          });
-        }
+        // The knowledge index is consulted once per turn for subscribers (the server decides from
+        // the session — see /api/chat). Mirror that here so the meter reflects the real cost.
+        if (usageRef.current && usageRef.current.tier !== "none") void recordKnowledgeQueries(1);
         if (!attendingRef.current) engineRef.current?.setState("neutral");
         else engineRef.current?.setState("listening");
         // remember this exchange in the background: extract durable memories -> embed -> store.

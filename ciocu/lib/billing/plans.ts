@@ -58,7 +58,7 @@ export const PLAN_CARDS: PlanCard[] = [
       "Real-time voice",
       "She remembers you across sessions",
       "Memory synced across your devices",
-      "Knowledge bases",
+      "Her deeper knowledge",
       energy("basic"),
     ],
   },

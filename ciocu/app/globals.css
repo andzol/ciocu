@@ -515,8 +515,9 @@ a.menu-item {
   line-height: 1.4;
   margin: 0;
 }
-/* Knowledge-base toggles */
-.kb-list {
+/* Voice provider options (radio rows). These began life as the knowledge-base toggles; the
+   Knowledge section no longer has switches, so only the radio styling survives. */
+.opt-list {
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
@@ -524,7 +525,14 @@ a.menu-item {
   flex-direction: column;
   gap: 2px;
 }
-.kb-item {
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.opt-item {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -535,11 +543,11 @@ a.menu-item {
   color: var(--text);
   transition: background 0.12s var(--ease-out);
 }
-.kb-item:hover {
+.opt-item:hover {
   background: var(--surface-2);
 }
-/* Custom checkbox styled like the ghost buttons: dark + bordered when off, cyan when on. */
-.kb-check {
+/* Styled like the ghost buttons: dark + bordered when off, cyan with a dot when on. */
+.opt-radio {
   appearance: none;
   -webkit-appearance: none;
   width: 18px;
@@ -548,83 +556,24 @@ a.menu-item {
   display: inline-grid;
   place-content: center;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 50%;
   background: transparent;
   cursor: pointer;
   transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
 }
-.kb-check:hover {
+.opt-radio:hover {
   border-color: var(--border-cyan);
 }
-.kb-check:checked {
+.opt-radio:checked {
   background: var(--cyan);
   border-color: var(--cyan);
 }
-.kb-check:checked::after {
+.opt-radio:checked::after {
   content: "";
-  width: 5px;
-  height: 9px;
-  margin-top: -1px;
-  border: solid #04252c;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-/* A base row: the toggle label plus an optional "info" button opening its description card. */
-.kb-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.kb-row .kb-item {
-  flex: 1;
-  min-width: 0;
-}
-.kb-info-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out);
-}
-.kb-info-btn:hover {
-  color: var(--cyan);
-  background: var(--surface-2);
-}
-
-/* Knowledge-base description viewer — the base's own standalone HTML inside an iframe. */
-.kb-info-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(3, 5, 8, 0.62);
-}
-.kb-info-card {
-  display: flex;
-  flex-direction: column;
-  width: min(600px, 100%);
-  height: min(80vh, 720px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-.kb-info-frame {
-  flex: 1;
-  width: 100%;
-  border: 0;
-  background: #0c0c14;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #04252c;
 }
 
 .settings-account {
@@ -692,29 +641,16 @@ a.menu-item {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
-/* Small cyan energy mark: shown in the % readout and beside each knowledge base (they cost energy). */
+/* Small cyan energy mark: shown in the % readout and beside anything that costs energy. */
 .energy-icon {
   color: var(--cyan);
   vertical-align: -2px;
   flex: none;
 }
-.kb-name {
+.opt-name {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-/* Radio variant of .kb-check (provider choice) — round, with a dot instead of a tick. */
-.kb-radio {
-  border-radius: 50%;
-}
-.kb-radio:checked::after {
-  width: 7px;
-  height: 7px;
-  margin-top: 0;
-  border: 0;
-  border-radius: 50%;
-  background: #04252c;
-  transform: none;
 }
 /* Language picker beside the Google option. */
 .stt-lang {
@@ -740,25 +676,13 @@ a.menu-item {
   line-height: 1.45;
 }
 
-/* "free" mark: this base never draws energy (support). Quiet — it replaces the lightning. */
-.kb-free {
+/* "free" mark: this option never draws energy. Quiet — it replaces the lightning. */
+.opt-free {
   flex: none;
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-dim);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.6;
-}
-/* 18+ mark on bases with frank adult material (amber, so it reads as caution — not the cyan accent). */
-.kb-adult {
-  flex: none;
-  margin-left: 2px;
-  padding: 1px 6px;
-  border: 1px solid rgba(255, 207, 112, 0.5);
-  border-radius: 999px;
-  color: #ffcf70;
   font-size: 10px;
   font-weight: 700;
   line-height: 1.6;
@@ -1407,4 +1331,68 @@ a.menu-item {
   .chat-tab {
     transition-duration: 0.01ms;
   }
+}
+
+/* ── Knowledge section — descriptive, not selectable ──────────────────────────
+   Replaced the per-base checkbox list. Mirrors the layout of the source material's own summary
+   cards (domains in two columns, then a few specific hooks) in the app's cyan. */
+.know-label {
+  margin: 18px 0 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.know-domains {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 18px;
+}
+@media (max-width: 520px) {
+  .know-domains { grid-template-columns: 1fr; }
+}
+.know-domain {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.know-domain::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--cyan);
+  opacity: 0.7;
+}
+.know-topics {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.know-topics li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.know-topics li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+.know-topics strong {
+  font-weight: 600;
+  color: var(--text);
 }

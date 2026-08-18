@@ -1,6 +1,6 @@
 # Ciocu — Usage Metering & Pricing Methodology
 
-_Last updated: 2026-07-09. This is the single source of truth for **how we count usage** and **how the tiers are priced**. Numbers marked ⚠️ are assumptions still to be confirmed._
+_Last updated: 2026-08-18. This is the single source of truth for **how we count usage** and **how the tiers are priced**. Numbers marked ⚠️ are assumptions still to be confirmed._
 
 ---
 
@@ -19,13 +19,14 @@ Credits are an *internal cost accounting* unit. Users never see "tokens" — the
 | Activity | Vendor | Vendor cost | In credits |
 |---|---|---|---|
 | **Voice / speech-to-text** | Soniox | $0.30 / hour = $0.005 / min ⚠️ | **0.5 credits / min** (30 / hr) |
-| **Chat reply** | DeepSeek V4 Pro (via OpenRouter) | ~$0.001 / message ⚠️ (~2k in + ~300 out tokens) | **~0.10 credits / message** |
+| **Chat reply** | DeepSeek V4 Flash 0731 (via OpenRouter) | ~$0.001 / message ⚠️ (~2k in + ~300 out tokens) | **~0.10 credits / message** |
+| **Knowledge retrieval** (subscribers only) | LlamaCloud + the tokens it adds | ~$0.001 / message ⚠️ (8 chunks ≈ +2.8k input tokens) | **~0.10 credits / message** |
 | **Mood read + memory reflect** (background) | DeepSeek V4 Flash | ~$0.0003 / turn | **~0.03 credits / turn** |
 | **Embeddings** (recall / memory) | on-device (multilingual-e5-small) | $0.00 | **0 credits** |
 
-**The dominant cost is voice.** STT is ~95% of variable cost. One hour of talking ≈ the cost of ~230 text messages. This is why the whole model is robust even if the DeepSeek price guess is off — and why voice is the thing we meter most carefully.
+**The dominant cost is voice.** STT is ~95% of variable cost. One hour of talking ≈ the cost of ~130 text messages for a subscriber (30 ÷ 0.23), or ~230 before knowledge retrieval was added. This is why the whole model is robust even if the DeepSeek price guess is off — and why voice is the thing we meter most carefully.
 
-⚠️ **To confirm:** (a) Soniox **real-time / streaming** rate (may exceed the $0.30/hr async rate); (b) DeepSeek **V4 Pro** exact input/output token price on OpenRouter.
+⚠️ **To confirm:** (a) Soniox **real-time / streaming** rate (may exceed the $0.30/hr async rate); (b) DeepSeek **V4 Flash** exact input/output token price on OpenRouter; (c) whether LlamaCloud bills retrieval per query on our plan, or only indexing — the row above prices only the *added prompt tokens* and assumes the query itself is included.
 
 ---
 
@@ -37,9 +38,16 @@ Credits are an *internal cost accounting* unit. Users never see "tokens" — the
 credits = (STT_seconds / 3600 × 30)     ← voice (active streamed audio only)
         + (chat_messages   × 0.10)      ← her reply
         + (turns           × 0.03)      ← mood read + memory reflect overhead
+        + (turns           × 0.10)      ← knowledge retrieval, SUBSCRIBERS ONLY
 ```
 
 **Key rule — bill active audio, not wall-clock time.** Ciocu's mic is *attention-gated*: speech-to-text only streams while the user is actually looking at her eyes and speaking. We meter the **actual streamed audio seconds**, NOT "time the app was open." This cuts real STT cost ~3–5× vs. an always-on mic and is the single biggest cost lever we already have built in.
+
+**Knowledge is not optional and not per-question.** Every subscriber turn consults the one curated
+index — there are no bases to switch on, so there is no turn where a subscriber "didn't use" it. That
+roughly doubles the cost of a text message (0.13 → 0.23 credits), which is why the text estimates
+below dropped. It does **not** move the headline numbers: voice still dominates, and a user who talks
+is nowhere near the text ceiling. Free users get no retrieval, so their allowance is unchanged.
 
 **Free (0 credits):** embeddings, memory recall, memory storage, eye rendering, idle time, reading her replies.
 
@@ -55,7 +63,7 @@ Three subscription tiers, at a flat 40 credits per dollar. Allowances are derive
 | Rendben checkout | `.../prod_olxcRFQdF9NAJonbr1A` | `.../prod_GiPAMS8iLO64GI8RtYc` | `.../prod_EUY2iPOr11e5tQX0Oe8` |
 | **Monthly allowance** | **400 credits** | **800 credits** | **4,400 credits** |
 | ≈ voice-heavy use | ~13 hrs/mo (~26 min/day) | ~24 hrs/mo (~45 min/day) | ~125 hrs/mo (~4 hr/day) |
-| ≈ text-heavy use | ~3,000 messages | ~6,000+ messages | ~34,000 messages |
+| ≈ text-heavy use | ~1,700 messages | ~3,400 messages | ~19,000 messages |
 
 Users can mix voice and text freely — it's one credit pool that both draw from.
 
@@ -108,7 +116,11 @@ Moving off a Merchant of Record cut the payment fee from ~5% + $0.50 to 0.5%, so
 ## 8. Open items
 
 - [ ] Confirm Soniox real-time streaming rate (currently ⚠️ $0.30/hr).
-- [ ] Confirm DeepSeek V4 Pro token price on OpenRouter.
+- [ ] Confirm DeepSeek V4 Flash token price on OpenRouter.
+- [ ] Confirm whether LlamaCloud meters retrieval queries on our plan (§2 assumes it does not).
+- [x] Knowledge consolidated to ONE index ("ciocu"), consulted automatically on every subscriber
+  turn — `lib/knowledge/llamacloud.ts` resolves it by name; `/api/chat` decides entitlement from the
+  session cookie, never from the client. The per-base picker and `/api/knowledge` are gone.
 - [x] Basic / Standard / Pro / top-up products created in Rendben (`prod_olxcRF…` $10, `prod_GiPAMS…` $20, `prod_EUY2…` $95, `prod_B996…` $20 one-time), each with its own checkout URL.
 - [x] Build `lib/usage` credit ledger — `lib/usage/rates.ts` (rate card) + `lib/usage/ledger.ts`
   (IndexedDB `ciocu-usage`, monthly rollover, drain, `canUseVoice()` throttle, `useUsage()` hook).
