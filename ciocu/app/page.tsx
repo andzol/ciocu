@@ -59,6 +59,7 @@ export default function Home() {
   usageRef.current = usage;
 
   const [caption, setCaption] = useState(DEFAULT_CAPTIONS.greeting);
+  const [captionStreaming, setCaptionStreaming] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attending, setAttending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -170,6 +171,7 @@ export default function Home() {
 
       // Free plan: cap at FREE_MESSAGE_LIMIT exchanges, then nudge to subscribe.
       if (usageRef.current?.messageBlocked) {
+        setCaptionStreaming(false);
         setCaption(captionsRef.current.freeLimit);
         setSettingsOpen(true);
         return;
@@ -237,13 +239,19 @@ export default function Home() {
           const next = [...messagesRef.current];
           next[next.length - 1] = { role: "ciocu", text: reply };
           applyMessages(next);
+          // Feed the caption as it arrives so she begins speaking the moment she has something to
+          // say. It paces itself (see Caption.tsx) and never outruns what's arrived, so network
+          // jitter changes when she starts, never the rhythm of how she says it.
+          setCaptionStreaming(true);
+          setCaption(reply);
         }
 
         reply = reply.trim() || "…";
         const finalized = [...messagesRef.current];
         finalized[finalized.length - 1] = { role: "ciocu", text: reply };
         applyMessages(finalized);
-        setCaption(reply); // her line appears beside her eyes with the word-by-word reveal
+        setCaptionStreaming(false); // releases the held-back final word
+        setCaption(reply);
         persist("ciocu", reply);
         void recordChatMessage(); // meter her reply against the monthly allowance
         // The knowledge index is consulted once per turn for subscribers (the server decides from
@@ -266,6 +274,7 @@ export default function Home() {
         const errored = [...messagesRef.current];
         errored[errored.length - 1] = { role: "ciocu", text: captionsRef.current.error };
         applyMessages(errored);
+        setCaptionStreaming(false);
         setCaption(captionsRef.current.error);
         engineRef.current?.setState("neutral");
       } finally {
@@ -430,7 +439,7 @@ export default function Home() {
       <EyeStage onReady={(h) => (engineRef.current = h)} />
 
       <div className="caption-band">
-        <Caption text={caption} />
+        <Caption text={caption} streaming={captionStreaming} />
       </div>
 
       <VersionBadge />
