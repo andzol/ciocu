@@ -285,3 +285,22 @@ export async function exportAll(): Promise<{
     blocks: await d.getAll("blocks"),
   };
 }
+
+/**
+ * Wipe every memory record — threads, messages, blocks and clusters.
+ *
+ * Only used by the "Replace everything" arm of a memory import, which asks first. Clusters go too:
+ * they're derived from blocks (centroids over member embeddings), so leaving them behind would
+ * point at blocks that no longer exist.
+ */
+export async function clearAllMemory(): Promise<void> {
+  const d = await db();
+  const tx = d.transaction(["threads", "messages", "blocks", "clusters"], "readwrite");
+  await Promise.all([
+    tx.objectStore("threads").clear(),
+    tx.objectStore("messages").clear(),
+    tx.objectStore("blocks").clear(),
+    tx.objectStore("clusters").clear(),
+    tx.done,
+  ]);
+}

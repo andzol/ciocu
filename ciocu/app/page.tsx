@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import EyeStage from "@/components/EyeStage";
+import MemoryImport from "@/components/MemoryImport";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
@@ -435,6 +436,9 @@ export default function Home() {
       <VersionBadge />
       <ChatDrawer messages={messages} onSend={sendMessage} open={chatOpen} onOpenChange={setChatOpen} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {/* Owns the memory-upload flow. Mounted here rather than in the menu because the menu is gone
+          by the time there's anything to confirm — and because closing her eyes needs the engine. */}
+      <MemoryImport onLids={(v) => engineRef.current?.setLids(v)} />
       <Onboarding onEnable={() => presenceRef.current?.enable()} />
     </main>
   );

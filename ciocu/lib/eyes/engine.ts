@@ -78,6 +78,10 @@ export interface EyeEngineHandle {
    *  you. Her eyes well for you, so this is what brings tears; her own mood deliberately stays
    *  steady (see the tear comment in the engine). Fades on its own between exchanges. */
   setEmpathy: (valence: number, arousal: number) => void;
+  /** Hold the lids: 1 = normal (auto-blink), 0 = closed. Eases rather than snapping, and composes
+   *  with the blink curve via min(), so releasing it back to 1 simply resumes blinking. She closes
+   *  her eyes while she takes in an uploaded memory — see components/MemoryImport.tsx. */
+  setLids: (v: number) => void;
   /** What she's actually feeling and showing right now — the engine's own eased values, not the
    *  targets, so it's the truth the eyes are rendering. For the ?debug readout. */
   getDebug: () => { state: StateName; moodV: number; moodA: number; tear: number; empV: number };
@@ -431,6 +435,9 @@ export function createEyeEngine(container: HTMLElement): EyeEngineHandle {
     setMood(valence: number, arousal: number) {
       moodVTarget = clamp(valence, -1, 1);
       moodATarget = clamp(arousal, 0, 1);
+    },
+    setLids(v: number) {
+      blinkTgt[0] = blinkTgt[1] = clamp(v, 0, 1);
     },
     setGaze(x: number, y: number) {
       face.x = clamp(x, -1, 1);

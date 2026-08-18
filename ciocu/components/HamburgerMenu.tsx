@@ -22,6 +22,7 @@ import {
 import { CHECKOUT_ENABLED } from "@/lib/billing/checkout";
 import { useUsage } from "@/lib/usage/ledger";
 import { MARKETING_URL, SUPPORT_EMAIL } from "@/lib/support";
+import { MEMORY_FILE_EVENT } from "@/components/MemoryImport";
 
 interface Item {
   id: string;
@@ -127,28 +128,24 @@ export default function HamburgerMenu({
     }
   }
 
+  /**
+   * Pick a file and hand it to <MemoryImport>, which owns confirmation, progress and the result.
+   *
+   * Nothing is decided or written here on purpose: opening the file dialog dismisses this menu, and
+   * the effect above clears `hint` when it closes — so anything reported from inside the menu was
+   * unreachable by the time it had something to say.
+   */
   function handleUpload() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "application/json,.json";
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
-      try {
-        const { isBundle, mergeBundle } = await import("@/lib/memory/bundle");
-        const data = JSON.parse(await file.text());
-        if (!isBundle(data)) {
-          setHint("That doesn't look like a Ciocu memory file.");
-          return;
-        }
-        await mergeBundle(data);
-        // reload so the restored thread + memories hydrate cleanly
-        window.location.reload();
-      } catch {
-        setHint("Couldn't read that memory file.");
-      }
+      window.dispatchEvent(new CustomEvent(MEMORY_FILE_EVENT, { detail: file }));
     };
     input.click();
+    setOpen(false);
   }
 
   return (

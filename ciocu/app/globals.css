@@ -1417,3 +1417,94 @@ a.menu-item {
 .account-expired p {
   margin: 0 0 8px;
 }
+
+/* ── Memory import ─────────────────────────────────────────────────────────────
+   Sits above everything (the eyes included — she's closing them behind it). */
+.import-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(3, 5, 8, 0.68);
+}
+.import-card {
+  width: min(460px, 100%);
+  padding: 22px 24px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.import-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+}
+.import-title--warn {
+  color: #ffcf70;
+}
+.import-facts {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.import-facts li {
+  padding: 3px 10px;
+  border: 1px solid var(--border-cyan);
+  border-radius: 999px;
+  color: var(--cyan);
+  font-size: 12.5px;
+}
+.import-note {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.import-choice {
+  margin: 0 0 18px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.import-choice strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Destructive, so it reads as caution rather than as the accent action. */
+.import-danger {
+  border-color: rgba(255, 207, 112, 0.45);
+  color: #ffcf70;
+}
+.import-danger:hover {
+  border-color: #ffcf70;
+}
+.import-bar {
+  height: 6px;
+  margin: 2px 0 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.import-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cyan);
+  transition: width 0.35s var(--ease-out);
+}
