@@ -7,13 +7,17 @@
 //
 // Written from the source material's own summaries. Keep it to what the corpus genuinely supports —
 // promising a depth she doesn't have is worse than promising nothing.
+//
+// DELIBERATELY OMITTED: the corpus's death material (near-death evidence, death as transition,
+// reincarnation and the between-lives veil). It stays in the index, but it is not advertised here.
+// A list of topics is read by everyone who opens Settings, including people in a bad way, and
+// "death as transition" offered as a conversation starter can read as an invitation to someone who
+// is already having those thoughts. Nothing in this list should look like an argument that dying is
+// a doorway. Do not add it back without a reason better than completeness.
 
 /** The territory, at a glance. Rendered as a two-column list. */
 export const KNOWLEDGE_DOMAINS: string[] = [
   "Consciousness & the nature of self",
-  "Near-death evidence",
-  "Soul, reincarnation & between lives",
-  "Death as transition",
   "Beliefs & the creation of reality",
   "Happiness — structure & sources",
   "Mind, emotions & the roots of illness",
@@ -26,13 +30,6 @@ export const KNOWLEDGE_DOMAINS: string[] = [
 
 /** Conversation starters — specific enough to be worth asking, not a syllabus. */
 export const KNOWLEDGE_HOOKS: { title: string; body: string }[] = [
-  {
-    title: "The brain as a filter, not a generator",
-    body:
-      "a neurosurgeon's near-death experience while his neocortex was documented non-functional for " +
-      "seven days — and why hallucination, REM and drug effects all need a working neocortex, so " +
-      "none of them explain it",
-  },
   {
     title: "Why happiness has three layers",
     body:
@@ -53,9 +50,9 @@ export const KNOWLEDGE_HOOKS: { title: string; body: string }[] = [
       "faced in yourself — the charge in the reaction is the signal",
   },
   {
-    title: "Why forgetting is a design feature",
+    title: "Consciousness as something that shapes, not just observes",
     body:
-      "what the veil between lives protects, and why full engagement with this life might require not " +
-      "carrying the accumulated record of every prior one",
+      "the claim that physical reality expresses awareness rather than containing it — and how an " +
+      "image held with enough emotional intensity starts acting as a blueprint for what follows",
   },
 ];

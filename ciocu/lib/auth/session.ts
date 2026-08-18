@@ -18,10 +18,31 @@ const KEY = "ciocu.google.profile";
 const listeners = new Set<() => void>();
 let current: GoogleProfile | null = null;
 
+/**
+ * Undo UTF-8-read-as-Latin-1 ("Zoltán" → "ZoltÃ¡n").
+ *
+ * A shipped build stored names decoded that way, and a stored profile is only ever rewritten at the
+ * next sign-in — which, with a healthy session, means never. So repair on read rather than wait for
+ * one. Deliberately narrow: it only fires on the tell-tale lead-byte pair, bails if any character is
+ * outside the byte range, and decodes with `fatal` so text that merely contains "Ã" is left alone.
+ */
+function repairMojibake(value: string): string {
+  if (!/[Â-Ã][-¿]/.test(value)) return value;
+  for (const ch of value) if (ch.charCodeAt(0) > 0xff) return value;
+  try {
+    const bytes = Uint8Array.from(value, (c) => c.charCodeAt(0));
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return value; // not actually mis-decoded UTF-8 — leave it exactly as it was
+  }
+}
+
 function safeParse(raw: string | null): GoogleProfile | null {
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as GoogleProfile;
+    const parsed = JSON.parse(raw) as GoogleProfile;
+    if (typeof parsed?.name === "string") parsed.name = repairMojibake(parsed.name);
+    return parsed;
   } catch {
     return null;
   }

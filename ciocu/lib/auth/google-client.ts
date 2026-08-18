@@ -119,7 +119,12 @@ export function requestToken(): Promise<string | null> {
  *  itself before granting anything; this only fills in a name and an avatar. */
 function claimsOf(jwt: string): { sub?: string; name?: string; email?: string; picture?: string } | null {
   try {
-    return JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const b64 = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    // atob yields BYTES, one per char — decoding it as a string mangles every non-ASCII name
+    // ("Zoltán" → "ZoltÃ¡n"). Route the bytes through TextDecoder so the claims are read as the
+    // UTF-8 they are.
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return null;
   }
