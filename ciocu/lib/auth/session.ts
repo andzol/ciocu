@@ -43,6 +43,7 @@ export function getProfile(): GoogleProfile | null {
 
 export function setProfile(profile: GoogleProfile | null): void {
   current = profile;
+  setAuthExpired(false);
   try {
     if (profile) window.localStorage.setItem(KEY, JSON.stringify(profile));
     else window.localStorage.removeItem(KEY);
@@ -63,5 +64,35 @@ export function useGoogleUser(): GoogleProfile | null {
     subscribe,
     () => current,
     () => null,
+  );
+}
+
+// ── Server session liveness ───────────────────────────────────────────────────
+// The profile above is UI state and never expires; the httpOnly session cookie does. When those two
+// disagree the app must not quietly render the user as free — it says the session lapsed and offers
+// to restore it. Kept here rather than prop-drilled so the topbar and Settings can both read it.
+
+let expired = false;
+const expiredListeners = new Set<() => void>();
+
+export function setAuthExpired(value: boolean): void {
+  if (expired === value) return;
+  expired = value;
+  expiredListeners.forEach((l) => l());
+}
+
+export function isAuthExpired(): boolean {
+  return expired;
+}
+
+/** React hook: true when we hold a profile but the server no longer accepts our session. */
+export function useAuthExpired(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      expiredListeners.add(cb);
+      return () => expiredListeners.delete(cb);
+    },
+    () => expired,
+    () => false,
   );
 }

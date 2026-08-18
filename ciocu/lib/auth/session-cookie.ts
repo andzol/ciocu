@@ -8,7 +8,7 @@ export const SESSION_COOKIE = "ciocu_session";
 const MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
 const SECRET = process.env.AUTH_SECRET || "";
 
-interface SessionPayload {
+export interface SessionPayload {
   email: string;
   sub: string;
   exp: number; // epoch seconds
@@ -49,6 +49,22 @@ export function readSessionToken(token: string | undefined, now = Date.now()): S
   } catch {
     return null;
   }
+}
+
+/**
+ * True if a valid session is old enough to be worth re-issuing.
+ *
+ * The cookie is a hard 30-day expiry minted only at explicit sign-in, so an account that stays
+ * signed in simply falls off the cliff on day 31 — while the localStorage profile survives, leaving
+ * the UI showing a signed-in user the server no longer recognises. Sliding the expiry on use means
+ * anyone who opens the app at least monthly never expires at all.
+ *
+ * Refreshes past the first third of the lifetime, so a typical visit does not re-issue on every
+ * request but a returning user is always well clear of the edge.
+ */
+export function shouldRefreshSession(payload: SessionPayload, now = Date.now()): boolean {
+  const remaining = payload.exp * 1000 - now;
+  return remaining < MAX_AGE_S * 1000 * (2 / 3);
 }
 
 // `Secure` is omitted on plain-http localhost (else the browser drops the cookie in dev).

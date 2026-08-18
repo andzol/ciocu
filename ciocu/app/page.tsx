@@ -17,7 +17,8 @@ import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/li
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { createSonioxVoice } from "@/lib/voice/soniox";
 import { useVoicePrefs } from "@/lib/voice/prefs";
-import { useGoogleUser } from "@/lib/auth/session";
+import { setAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { silentReauth } from "@/lib/auth/google-client";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
 import { rememberExchange } from "@/lib/memory/reflect";
@@ -276,28 +277,47 @@ export default function Home() {
 
   // Reflect the real plan into the usage meter: read the tier from the payment provider (via the session)
   // whenever the user signs in / the tab regains focus (so it updates after paying in the checkout tab).
+  //
+  // A 401 means our httpOnly session cookie lapsed while the localStorage profile survived — the UI
+  // shows a signed-in user the server doesn't know. That used to arrive here as a plain "none" and
+  // pinned a paying customer to Free through every refresh, recoverable only by signing out and back
+  // in. So: re-open the session silently and retry once, and if even that fails, say the session
+  // expired rather than writing down a tier we no longer have any basis for.
   useEffect(() => {
     if (!user) {
       void setTier("none");
       return;
     }
     let cancelled = false;
+    let triedReauth = false;
+
+    const apply = (info: { tier?: Tier; renewsAt?: number | null; topupCredits?: number }) => {
+      if (cancelled || !info.tier) return;
+      setAuthExpired(false);
+      void setSubscription({
+        tier: info.tier,
+        renewsAt: info.renewsAt ?? null,
+        topupCredits: info.topupCredits ?? 0,
+      });
+    };
+
     const sync = async () => {
       try {
-        const res = await fetch("/api/subscription");
-        if (!res.ok) return;
-        const info = (await res.json()) as {
-          tier?: Tier;
-          renewsAt?: number | null;
-          topupCredits?: number;
-        };
-        if (!cancelled && info.tier) {
-          void setSubscription({
-            tier: info.tier,
-            renewsAt: info.renewsAt ?? null,
-            topupCredits: info.topupCredits ?? 0,
-          });
+        let res = await fetch("/api/subscription");
+
+        if (res.status === 401 && !triedReauth) {
+          triedReauth = true; // once per mount — never loop on a user who really is signed out
+          const restored = await silentReauth();
+          if (cancelled) return;
+          if (restored) res = await fetch("/api/subscription");
         }
+
+        if (res.status === 401) {
+          if (!cancelled) setAuthExpired(true);
+          return;
+        }
+        if (!res.ok) return;
+        apply(await res.json());
       } catch {
         /* best-effort; meter falls back to its stored tier */
       }

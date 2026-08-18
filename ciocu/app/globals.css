@@ -1396,3 +1396,24 @@ a.menu-item {
   font-weight: 600;
   color: var(--text);
 }
+
+/* Session lapsed: the account chip carries an amber dot and the menu explains it. Amber, not the
+   cyan accent — this is a caution, not a feature. */
+.account-warn {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: #ffcf70;
+}
+.account-expired {
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.account-expired p {
+  margin: 0 0 8px;
+}

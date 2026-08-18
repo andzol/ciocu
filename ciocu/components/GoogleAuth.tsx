@@ -1,36 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { setProfile, useGoogleUser } from "@/lib/auth/session";
+import { setProfile, useAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import {
+  completeSignIn,
+  ensureTokenClient,
+  requestToken,
+} from "@/lib/auth/google-client";
 
 // ── Google sign-in (OAuth token flow) ───────────────────────────────────────────
 // We use Google's OAuth token flow (initTokenClient) rather than the rendered GIS button, so the
 // sign-in control is OUR own button — fully themeable AND clickable (the rendered GIS button can't
-// be restyled and blocks clicks when skinned). On click Google returns an access token; we fetch
-// the user's profile for the chip and POST the token to /api/auth to open the verified session.
+// be restyled and blocks clicks when skinned). The flow itself lives in lib/auth/google-client.ts,
+// because the subscription sync needs it too: it re-opens a lapsed session with no UI, which is
+// impossible if the only way to reach Google is a click on this button.
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
-interface TokenResponse {
-  access_token?: string;
-}
-interface TokenClient {
-  requestAccessToken: () => void;
-}
-interface GoogleOAuth2 {
-  initTokenClient(config: {
-    client_id: string;
-    scope: string;
-    callback: (res: TokenResponse) => void;
-  }): TokenClient;
-}
-declare global {
-  interface Window {
-    google?: { accounts: { oauth2: GoogleOAuth2 } };
-  }
-}
-
-// Google's 4-color "G".
+// Google's "G".
 function GoogleG() {
   return (
     <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
@@ -44,62 +31,26 @@ function GoogleG() {
 
 export default function GoogleAuth() {
   const profile = useGoogleUser();
+  const expired = useAuthExpired();
   const [menuOpen, setMenuOpen] = useState(false);
-  const tokenClientRef = useRef<TokenClient | null>(null);
+  const [busy, setBusy] = useState(false);
   const chipRef = useRef<HTMLDivElement>(null);
 
-  // Load the GIS script once and initialize the OAuth token client.
+  // Warm the GIS script up front so the first click doesn't wait on a network round-trip, and so a
+  // silent re-auth from the subscription sync has a client ready to use.
   useEffect(() => {
-    if (!CLIENT_ID) return;
-    let cancelled = false;
-
-    function init() {
-      const oauth2 = window.google?.accounts?.oauth2;
-      if (!oauth2 || cancelled || tokenClientRef.current) return;
-      tokenClientRef.current = oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: "openid email profile",
-        callback: (res) => {
-          const token = res.access_token;
-          if (!token) return;
-          // 1) Fetch the profile for the chip (best-effort display).
-          fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((p) => {
-              if (p?.email) setProfile({ sub: p.sub, name: p.name, email: p.email, picture: p.picture });
-            })
-            .catch(() => {});
-          // 2) Open the verified server session (httpOnly cookie that gates paid features).
-          fetch("/api/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ access_token: token }),
-          }).catch(() => {});
-        },
-      });
-    }
-
-    if (window.google?.accounts?.oauth2) {
-      init();
-      return;
-    }
-    const src = "https://accounts.google.com/gsi/client";
-    let script = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (!script) {
-      script = document.createElement("script");
-      script.src = src;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-    script.addEventListener("load", init);
-    return () => {
-      cancelled = true;
-      script?.removeEventListener("load", init);
-    };
+    void ensureTokenClient();
   }, []);
+
+  async function signIn() {
+    setBusy(true);
+    try {
+      const token = await requestToken();
+      if (token) await completeSignIn(token);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Close the account menu on outside click / Escape.
   useEffect(() => {
@@ -132,11 +83,7 @@ export default function GoogleAuth() {
   if (!profile) {
     // Our own themed button; clicking triggers Google's token popup (see the token client above).
     return (
-      <button
-        type="button"
-        className="google-signin-btn"
-        onClick={() => tokenClientRef.current?.requestAccessToken()}
-      >
+      <button type="button" className="google-signin-btn" onClick={signIn} disabled={busy}>
         <GoogleG />
         Sign in
       </button>
@@ -157,6 +104,7 @@ export default function GoogleAuth() {
         {/* eslint-disable-next-line @next/next/no-img-element -- Google avatar, external host */}
         <img className="account-avatar" src={profile.picture} alt="" referrerPolicy="no-referrer" />
         <span className="account-name">{firstName}</span>
+        {expired && <span className="account-warn" aria-hidden="true" />}
       </button>
 
       {menuOpen && (
@@ -174,6 +122,17 @@ export default function GoogleAuth() {
               <span className="account-meta-email">{profile.email}</span>
             </div>
           </div>
+          {expired && (
+            // Silent re-auth already failed (no live Google session, or consent was revoked), so
+            // this is the one case that genuinely needs a click. Say so plainly — the alternative is
+            // showing a paying customer the free plan and letting them wonder.
+            <div className="account-expired">
+              <p>Your session expired, so your plan can&apos;t be confirmed.</p>
+              <button type="button" className="btn-ghost" onClick={signIn} disabled={busy}>
+                {busy ? "Signing in…" : "Sign in again"}
+              </button>
+            </div>
+          )}
           <button type="button" role="menuitem" className="menu-item" onClick={signOut}>
             Sign out
           </button>
