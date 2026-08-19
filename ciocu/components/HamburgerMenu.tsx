@@ -38,9 +38,11 @@ const ITEMS: Item[] = [
 export default function HamburgerMenu({
   onOpenSettings,
   onOpenChat,
+  onOpenKnowledge,
 }: {
   onOpenSettings: () => void;
   onOpenChat: () => void;
+  onOpenKnowledge: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -171,8 +173,17 @@ export default function HamburgerMenu({
             <span>Settings &amp; usage</span>
           </button>
 
-          {/* Knowledge — the reference bases she can draw on (toggled in Settings). */}
-          <button type="button" role="menuitem" className="menu-item" onClick={handleSettings}>
+          {/* Knowledge — what she knows. Its own panel: there's nothing to set, so it never
+              belonged under Settings. */}
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            onClick={() => {
+              setOpen(false);
+              onOpenKnowledge();
+            }}
+          >
             <span className="menu-item-icon">
               <Books size={20} weight="regular" />
             </span>

@@ -9,7 +9,6 @@ import { CHECKOUT_ENABLED, TOPUP_URL, openCheckout, openTopup } from "@/lib/bill
 import { PLAN_CARDS, formatPrice, loadPlanPrices, type PlanPrice } from "@/lib/billing/plans";
 import { STT_LANGUAGES, setVoiceLang, setVoiceProvider, useVoicePrefs } from "@/lib/voice/prefs";
 
-import { KNOWLEDGE_DOMAINS, KNOWLEDGE_HOOKS } from "@/lib/knowledge/topics";
 
 // Just the plan's name. The price deliberately isn't here — it lives with the payment provider, and the one
 // that used to sit in this label ("Basic — $19.99/mo") is exactly the kind of copy that goes stale
@@ -24,7 +23,6 @@ const TIER_LABEL: Record<string, string> = {
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const user = useGoogleUser();
   const usage = useUsage();
-  const tier = usage?.tier;
   const voice = useVoicePrefs();
   const [hint, setHint] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, PlanPrice> | null>(null);
@@ -329,39 +327,6 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             </section>
           )}
 
-          {/* ── Knowledge — what she knows, not a set of switches ───────────────────
-              Curating in public didn't work: it asked the user to guess which subject their
-              question belonged to before asking it. One curated index now, consulted automatically,
-              so this section's job is to say what's in there and give people somewhere to start. */}
-          {usage && usage.tier !== "none" && (
-            <section className="settings-section">
-              <h3 className="settings-heading">Knowledge</h3>
-              <p className="settings-muted settings-usage-approx">
-                Beyond everyday conversation, Ciocu has read deeply in one area: consciousness and
-                the inner life — where psychology, philosophy and the edge of measurable science
-                meet. She draws on it by herself when a conversation goes there, so there is nothing
-                to switch on. She holds it without retreating to religion and without dismissing
-                what doesn&apos;t fit materialism, and she&apos;ll tell you which parts rest on
-                evidence and which are speculation.
-              </p>
-
-              <p className="know-label">What she can go deep on</p>
-              <div className="know-domains">
-                {KNOWLEDGE_DOMAINS.map((d) => (
-                  <span className="know-domain" key={d}>{d}</span>
-                ))}
-              </div>
-
-              <p className="know-label">Worth asking her about</p>
-              <ul className="know-topics">
-                {KNOWLEDGE_HOOKS.map((h) => (
-                  <li key={h.title}>
-                    <strong>{h.title}</strong> — {h.body}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
         </div>
 
       </div>

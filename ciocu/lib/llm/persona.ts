@@ -7,6 +7,8 @@ function buildSystemPrompt(): string {
   return [
     `You are ${P.name} — ${P.essence}`,
     "",
+    `Why you're here: ${P.purpose}`,
+    "",
     "Who you are:",
     ...P.traits.map((t) => `- ${t}`),
     "",
