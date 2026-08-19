@@ -15,6 +15,14 @@ export interface GoogleProfile {
 }
 
 const KEY = "ciocu.google.profile";
+
+/**
+ * Dispatched once the signed httpOnly session cookie is actually in place — NOT when the profile
+ * appears. The two are separate: the profile is set from Google's userinfo while /api/auth is still
+ * in flight, so anything that calls a session-gated endpoint on "user became truthy" can easily beat
+ * its own cookie and get a 401.
+ */
+export const SESSION_OPENED_EVENT = "ciocu:session-opened";
 const listeners = new Set<() => void>();
 let current: GoogleProfile | null = null;
 

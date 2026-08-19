@@ -12,7 +12,7 @@
 // Google's token flow takes ONE callback at init, so requests are serialised: a request in flight
 // owns `pending`, and the callback (or error_callback) resolves it.
 
-import { setProfile } from "@/lib/auth/session";
+import { SESSION_OPENED_EVENT, setProfile } from "@/lib/auth/session";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 const GIS_SRC = "https://accounts.google.com/gsi/client";
@@ -163,6 +163,8 @@ export async function completeSignIn(proof: string | { credential: string }): Pr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    // Only now is the cookie set, so this is the moment anything session-gated can safely run.
+    if (res.ok) window.dispatchEvent(new Event(SESSION_OPENED_EVENT));
     return res.ok;
   } catch {
     return false;

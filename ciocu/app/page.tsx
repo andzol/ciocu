@@ -19,7 +19,7 @@ import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/li
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { createSonioxVoice } from "@/lib/voice/soniox";
 import { useVoicePrefs } from "@/lib/voice/prefs";
-import { setAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { SESSION_OPENED_EVENT, setAuthExpired, useGoogleUser } from "@/lib/auth/session";
 import { silentReauth } from "@/lib/auth/google-client";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
@@ -137,21 +137,25 @@ export default function Home() {
     return () => clearInterval(id);
   }, [pushMood]);
 
+  // Show whichever conversation is most recent across every device, and adopt it as the one being
+  // continued. Extracted because it has to run twice: once on mount, and again after a sign-in
+  // brings another device's history down (see the effect below).
+  const hydrateThread = useCallback(async () => {
+    const existing = await getLatestThreadId();
+    const threadId = existing ?? newId();
+    threadIdRef.current = threadId;
+    if (!existing) return;
+    const prior = await getThreadMessages(threadId);
+    if (prior.length) applyMessages(prior.map((m) => ({ role: m.role, text: m.text })));
+  }, [applyMessages]);
+
   // Load (or start) the persisted thread so the conversation survives reloads.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await pullFromServer(); // merge any synced memory before picking the latest thread
-        const existing = await getLatestThreadId();
-        const threadId = existing ?? newId();
-        threadIdRef.current = threadId;
-        if (existing) {
-          const prior = await getThreadMessages(threadId);
-          if (!cancelled && prior.length) {
-            applyMessages(prior.map((m) => ({ role: m.role, text: m.text })));
-          }
-        }
+        if (!cancelled) await hydrateThread();
         schedulePush(3000); // reconcile any local-only changes up to the server
         // Warm the memory clusters now (idempotent, and a no-op once assigned). Right after the
         // M4c→M4d upgrade — or an import — this re-clusters what's already stored, and doing it
@@ -164,7 +168,30 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [applyMessages]);
+  }, [applyMessages, hydrateThread]);
+
+  // Sync again when a session opens.
+  //
+  // The effect above runs ONCE, on mount. Signing in afterwards — which is what actually happens on
+  // a second device: open the app, then log in — re-ran nothing, so the other device's conversation
+  // stayed on the server until the next reload. /api/memory needs the session cookie, so this waits
+  // for SESSION_OPENED_EVENT rather than for the profile, which appears while /api/auth is still in
+  // flight and would race its own cookie to a 401.
+  useEffect(() => {
+    let cancelled = false;
+    async function adopt() {
+      const merged = await pullFromServer();
+      // Never yank the screen out from under a reply in progress; the next load will pick it up.
+      if (cancelled || !merged || generatingRef.current) return;
+      await hydrateThread();
+      schedulePush(3000);
+    }
+    window.addEventListener(SESSION_OPENED_EVENT, adopt);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SESSION_OPENED_EVENT, adopt);
+    };
+  }, [hydrateThread]);
 
   const sendMessage = useCallback(
     async (raw: string) => {
@@ -336,11 +363,13 @@ export default function Home() {
     };
     void sync();
     window.addEventListener("focus", sync);
-    window.addEventListener(SUB_UPDATED_EVENT, sync); // fires right after a successful checkout
+    window.addEventListener(SUB_UPDATED_EVENT, sync); // reserved for the checkout return path
+    window.addEventListener(SESSION_OPENED_EVENT, sync); // a fresh cookie can mean a new tier
     return () => {
       cancelled = true;
       window.removeEventListener("focus", sync);
       window.removeEventListener(SUB_UPDATED_EVENT, sync);
+      window.removeEventListener(SESSION_OPENED_EVENT, sync);
     };
   }, [user]);
 
