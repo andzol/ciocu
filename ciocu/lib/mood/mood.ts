@@ -36,6 +36,15 @@ export function saveBond(bond: number): void {
   }
 }
 
+/** Forget the relationship entirely — used when the device changes hands (see memory/owner.ts). */
+export function clearBond(): void {
+  try {
+    window.localStorage.removeItem(BOND_KEY);
+  } catch {
+    /* private mode etc. */
+  }
+}
+
 /**
  * Fold the user's detected emotion into a new mood — the dog↔owner transform:
  * shared joy when they're up; tenderness + a calming, grounding steadiness when they're down or

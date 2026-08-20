@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import EyeStage from "@/components/EyeStage";
 import MemoryImport from "@/components/MemoryImport";
 import KnowledgePanel from "@/components/KnowledgePanel";
+import SignOutConfirm from "@/components/SignOutConfirm";
 import Caption from "@/components/Caption";
 import Wordmark from "@/components/Wordmark";
 import HamburgerMenu from "@/components/HamburgerMenu";
@@ -19,7 +20,8 @@ import { appendMessage, getLatestThreadId, getThreadMessages, newId } from "@/li
 import { createVoice, type VoiceHandle } from "@/lib/voice/speech";
 import { createSonioxVoice } from "@/lib/voice/soniox";
 import { useVoicePrefs } from "@/lib/voice/prefs";
-import { SESSION_OPENED_EVENT, setAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { getProfile, SESSION_OPENED_EVENT, setAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { reconcileOwner } from "@/lib/memory/owner";
 import { silentReauth } from "@/lib/auth/google-client";
 import { absorb, BASELINE, loadBond, relax, saveBond, type Mood } from "@/lib/mood/mood";
 import { formatMemories, recall } from "@/lib/memory/recall";
@@ -149,13 +151,32 @@ export default function Home() {
     if (prior.length) applyMessages(prior.map((m) => ({ role: m.role, text: m.text })));
   }, [applyMessages]);
 
-  // Load (or start) the persisted thread so the conversation survives reloads.
+  // Establish whose device this is, then load their conversation.
+  //
+  // Keyed on the identity, not just mount: IndexedDB is per-origin, and sign-out only ever cleared
+  // the cookie and the profile, so a second Google account on the same phone was shown the FIRST
+  // account's history. reconcileOwner erases the local store when it changes hands — and, had that
+  // second account been subscribed, would also have stopped schedulePush uploading someone else's
+  // conversation into their server bundle.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // getProfile(), NOT the hook's value: useSyncExternalStore serves the server snapshot
+        // (null) on the hydration render, so `user` reads as signed-out for one pass — which here
+        // meant a signed-in person's memory was wiped on every single reload. The module-level
+        // store is populated synchronously from localStorage, and effects only run on the client,
+        // so by this point it is already correct.
+        const outcome = await reconcileOwner(getProfile()?.sub ?? null);
+        if (cancelled) return;
+        if (outcome === "wiped") {
+          applyMessages([]);
+          threadIdRef.current = newId();
+          setCaption(captionsRef.current.greeting);
+        }
         await pullFromServer(); // merge any synced memory before picking the latest thread
-        if (!cancelled) await hydrateThread();
+        if (cancelled) return;
+        await hydrateThread();
         schedulePush(3000); // reconcile any local-only changes up to the server
         // Warm the memory clusters now (idempotent, and a no-op once assigned). Right after the
         // M4c→M4d upgrade — or an import — this re-clusters what's already stored, and doing it
@@ -168,7 +189,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [applyMessages, hydrateThread]);
+  }, [user?.sub, applyMessages, hydrateThread]);
 
   // Sync again when a session opens.
   //
@@ -180,6 +201,7 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     async function adopt() {
+      await reconcileOwner(getProfile()?.sub ?? null);
       const merged = await pullFromServer();
       // Never yank the screen out from under a reply in progress; the next load will pick it up.
       if (cancelled || !merged || generatingRef.current) return;
@@ -488,6 +510,7 @@ export default function Home() {
       {/* Owns the memory-upload flow. Mounted here rather than in the menu because the menu is gone
           by the time there's anything to confirm — and because closing her eyes needs the engine. */}
       <MemoryImport onLids={(v) => engineRef.current?.setLids(v)} />
+      <SignOutConfirm />
       <Onboarding onEnable={() => presenceRef.current?.enable()} />
     </main>
   );

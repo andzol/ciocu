@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { setProfile, useAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { useAuthExpired, useGoogleUser } from "@/lib/auth/session";
+import { SIGN_OUT_REQUEST_EVENT } from "@/components/SignOutConfirm";
 import {
   completeSignIn,
   ensureTokenClient,
@@ -69,10 +70,10 @@ export default function GoogleAuth() {
     };
   }, [menuOpen]);
 
+  // Ask first — signing out clears this device's memory now (see SignOutConfirm).
   function signOut() {
-    void fetch("/api/auth", { method: "DELETE" }); // clear the server session cookie
-    setProfile(null);
     setMenuOpen(false);
+    window.dispatchEvent(new Event(SIGN_OUT_REQUEST_EVENT));
   }
 
   if (!CLIENT_ID) {

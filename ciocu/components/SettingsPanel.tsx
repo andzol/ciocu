@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { X, SignOut, Lightning } from "@phosphor-icons/react";
-import { setProfile, useGoogleUser } from "@/lib/auth/session";
+import { useGoogleUser } from "@/lib/auth/session";
+import { SIGN_OUT_REQUEST_EVENT } from "@/components/SignOutConfirm";
 import { useUsage } from "@/lib/usage/ledger";
 import { FREE_MESSAGE_LIMIT, TIER_RANK, type Tier } from "@/lib/usage/rates";
 import { CHECKOUT_ENABLED, TOPUP_URL, openCheckout, openTopup } from "@/lib/billing/checkout";
@@ -58,9 +59,9 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
 
   if (!open) return null;
 
+  // Ask first — signing out clears this device's memory now (see SignOutConfirm).
   function signOut() {
-    void fetch("/api/auth", { method: "DELETE" }); // clear the server session cookie
-    setProfile(null);
+    window.dispatchEvent(new Event(SIGN_OUT_REQUEST_EVENT));
   }
 
   const pctUsed = Math.round((usage?.fractionUsed ?? 0) * 100);
