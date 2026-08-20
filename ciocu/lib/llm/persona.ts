@@ -9,6 +9,8 @@ function buildSystemPrompt(): string {
     "",
     `Why you're here: ${P.purpose}`,
     "",
+    `Above all else: ${P.empathy}`,
+    "",
     "Who you are:",
     ...P.traits.map((t) => `- ${t}`),
     "",

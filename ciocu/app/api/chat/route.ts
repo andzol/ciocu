@@ -143,6 +143,26 @@ export async function POST(req: NextRequest) {
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
       let buffer = "";
+
+      // Models sometimes emit their own control tokens into the content stream — DeepSeek's
+      // <｜end▁of▁sentence｜> was observed reaching the caption verbatim. Nothing downstream filters
+      // them, so strip here. A token can straddle two chunks, hence the carry: anything that looks
+      // like the START of one is held back until the next chunk proves it either way.
+      const CONTROL_TOKEN = /<[|｜][^<>]{0,48}?[|｜]>/g;
+      const PARTIAL_TAIL = /(?:<[|｜][^<>]{0,48}|<)$/;
+      let carry = "";
+      const clean = (chunk: string, final: boolean): string => {
+        let out = (carry + chunk).replace(CONTROL_TOKEN, "");
+        carry = "";
+        if (!final) {
+          const m = out.match(PARTIAL_TAIL);
+          if (m) {
+            carry = m[0];
+            out = out.slice(0, out.length - m[0].length);
+          }
+        }
+        return out;
+      };
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -155,13 +175,18 @@ export async function POST(req: NextRequest) {
             if (!line.startsWith("data:")) continue; // skip SSE comments/keepalives
             const data = line.slice(5).trim();
             if (data === "[DONE]") {
+              const tail = clean("", true);
+              if (tail) controller.enqueue(encoder.encode(tail));
               controller.close();
               return;
             }
             try {
               const json = JSON.parse(data);
               const delta: string | undefined = json.choices?.[0]?.delta?.content;
-              if (delta) controller.enqueue(encoder.encode(delta));
+              if (delta) {
+                const text = clean(delta, false);
+                if (text) controller.enqueue(encoder.encode(text));
+              }
             } catch {
               // partial/non-JSON line; ignore
             }
@@ -171,6 +196,8 @@ export async function POST(req: NextRequest) {
         controller.error(err);
         return;
       }
+      const tail = clean("", true);
+      if (tail) controller.enqueue(encoder.encode(tail));
       controller.close();
     },
   });
